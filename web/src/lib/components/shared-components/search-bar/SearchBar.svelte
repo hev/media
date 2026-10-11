@@ -159,7 +159,7 @@
         class="w-full border-b py-4 ps-14 text-immich-fg/75 transition-all max-md:py-2 dark:text-immich-dark-fg
         {showClearIcon ? 'pe-22.5' : 'pe-14'}
         {grayTheme || showSuggestions ? 'dark:bg-immich-dark-gray' : 'dark:bg-immich-dark-bg'}
-        {showSuggestions ? 'rounded-t-3xl shadow-[0_8px_20px_rgba(0,0,0,0.12)]' : 'rounded-3xl bg-gray-200'}
+        {showSuggestions ? 'rounded-t-3xl shadow-[0_8px_20px_rgba(0,0,0,0.12)]' : 'rounded-3xl bg-immich-gray'}
         {searchStore.isSearchEnabled ? 'border-light-200 bg-white dark:border-dark-600' : 'border-transparent'}"
         {placeholder}
         required
