@@ -1,0 +1,6 @@
+# Web-only runtime image: include the already-built bundle, not source/deps.
+**
+!web/
+!web/build/
+!web/build/**
+!Dockerfile.hev
