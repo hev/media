@@ -1,0 +1,76 @@
+/* hev palette; keep Immich's component geometry and photo-browsing UI. */
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/JetBrainsMono-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+
+@layer base {
+  :root,
+  .light {
+    --hev-signal: #e25822;
+    --immich-ui-light: #fafaf5;
+    --immich-ui-gray: #f4f0e6;
+    --immich-ui-dark: #111111;
+    --immich-ui-muted: #6b6b66;
+    --immich-ui-default-border: #e8e5dc;
+    --immich-ui-primary-50: #faf2e9;
+    --immich-ui-primary-100: #f6e5d7;
+    --immich-ui-primary-200: #eec9ad;
+    --immich-ui-primary-300: #eaa276;
+    --immich-ui-primary-400: #e25822;
+    /* Darker brand orange keeps small labels and button text legible. */
+    --immich-ui-primary-500: #c2451b;
+    --immich-ui-primary-600: #a63815;
+    --immich-ui-primary-700: #872d12;
+    --immich-ui-primary-800: #63200e;
+    --immich-ui-primary-900: #43170b;
+    --immich-ui-primary-950: #291008;
+    --immich-ui-light-50: #fafaf5;
+    --immich-ui-light-100: #f4f0e6;
+    --immich-ui-light-200: #e8e5dc;
+    --immich-ui-light-300: #d8d5cc;
+    --immich-ui-dark-50: #111111;
+    --immich-ui-dark-100: #1a1a18;
+    --immich-ui-dark-200: #2a2a28;
+    --immich-ui-dark-300: #454540;
+    --immich-ui-dark-400: #6b6b66;
+    --immich-primary: 194 69 27;
+    --immich-bg: 250 250 245;
+    --immich-fg: 17 17 17;
+    --immich-gray: 244 240 230;
+  }
+
+  .dark {
+    --immich-ui-light: #111111;
+    --immich-ui-gray: #1a1a18;
+    --immich-ui-dark: #fafaf5;
+    --immich-ui-muted: #a5a59b;
+    --immich-ui-default-border: #2a2a28;
+    --immich-ui-primary-50: #241810;
+    --immich-ui-primary-100: #362216;
+    --immich-ui-primary-200: #58301b;
+    --immich-ui-primary-300: #834222;
+    --immich-ui-primary-400: #b44d22;
+    --immich-ui-primary-500: #e25822;
+    --immich-ui-primary-600: #ff6b33;
+    --immich-ui-primary-700: #ff9469;
+    --immich-ui-primary-800: #ffc0a1;
+    --immich-ui-primary-900: #ffe3d0;
+    --immich-ui-primary-950: #fff3e8;
+    --immich-ui-light-50: #111111;
+    --immich-ui-light-100: #1a1a18;
+    --immich-ui-light-200: #2a2a28;
+    --immich-ui-light-300: #454540;
+    --immich-ui-dark-50: #fafaf5;
+    --immich-ui-dark-100: #f4f0e6;
+    --immich-ui-dark-200: #e8e5dc;
+    --immich-ui-dark-300: #d8d5cc;
+    --immich-ui-dark-400: #a5a59b;
+    --immich-dark-primary: 226 88 34;
+    --immich-dark-bg: 17 17 17;
+    --immich-dark-fg: 250 250 245;
+    --immich-dark-gray: 26 26 24;
+  }
+}

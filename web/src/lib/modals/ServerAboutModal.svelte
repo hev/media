@@ -18,6 +18,10 @@
 <Modal title={$t('about')} {onClose}>
   <ModalBody>
     <div class="flex flex-col gap-4 sm:grid sm:grid-cols-2">
+      <div class="col-span-full">
+        <a class="font-medium text-primary underline" href="https://github.com/hev/media">hev media · source code</a>
+        <p class="mt-1 text-sm">A hev-branded fork of Immich. Licensed under AGPL-3.0.</p>
+      </div>
       {#if info.sourceRef === 'main' && info.repository === 'immich-app/immich'}
         <Alert color="warning" title={$t('main_branch_warning')} class="col-span-full" size="small" />
       {/if}

@@ -1,0 +1,10 @@
+# The web bundle is built from this fork; the backend stays on its release.
+FROM ghcr.io/immich-app/immich-server:v3.3.1
+ARG HEV_SOURCE_COMMIT
+RUN rm -rf /build/www
+COPY web/build /build/www
+ENV IMMICH_REPOSITORY=hev/media \
+    IMMICH_REPOSITORY_URL=https://github.com/hev/media \
+    IMMICH_SOURCE_REF=brand/hev-media \
+    IMMICH_SOURCE_COMMIT=${HEV_SOURCE_COMMIT} \
+    IMMICH_SOURCE_URL=https://github.com/hev/media/commit/${HEV_SOURCE_COMMIT}
