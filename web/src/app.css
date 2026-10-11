@@ -74,15 +74,15 @@
 @layer base {
   :root {
     /* light */
-    --immich-primary: 66 80 175;
-    --immich-bg: 255 255 255;
-    --immich-fg: 0 0 0;
+    --immich-primary: 194 69 27;
+    --immich-bg: 250 250 245;
+    --immich-fg: 17 17 17;
 
     /* dark */
-    --immich-dark-primary: 172 203 250;
-    --immich-dark-bg: 10 10 10;
-    --immich-dark-fg: 229 231 235;
-    --immich-dark-gray: 33 33 33;
+    --immich-dark-primary: 226 88 34;
+    --immich-dark-bg: 17 17 17;
+    --immich-dark-fg: 250 250 245;
+    --immich-dark-gray: 26 26 24;
   }
 
   button:not(:disabled),
