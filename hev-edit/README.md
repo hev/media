@@ -34,10 +34,10 @@ private. One Codex worker runs at a time, with `gpt-6.1-sol`, using the video sk
 Interrupted active jobs become failed on restart so uploads/drafts are never
 silently repeated. Queued jobs resume. Inspect the private worker log before a
 revision. A revision retains the job ID and increments its revision/dedupe key.
-It creates a new draft; previous human-reviewed drafts are not deleted.
+It renders a new preview; only an explicit Publish request creates a Buffer draft. Previous drafts are retained.
 
 States: queued → editing → rendered → uploading → drafted, or failed from any
 active state. With Buffer disabled, a job stays uploading with an explicit R2
-completion note. It can be revised after the queue is idle. There is no publish,
+completion note. It can be revised after the queue is idle. There is a draft-only `/jobs/:id/publish` endpoint; there is no public publish,
 queue, schedule, or arbitrary-command endpoint. Output files and R2 uploads are
 retained for review; this service does not implement retention deletion.

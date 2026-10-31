@@ -31,7 +31,7 @@ export const editTools = [
   {
     name: 'revise_edit',
     description:
-      'Revise an existing edit after the user requests a change. Creates a new Buffer draft when enabled.',
+      'Revise an existing edit after the user requests a change. Renders a new revision for review. Buffer drafts require the Publish button.',
     input_schema: {
       ...object,
       properties: { id: { type: 'string' }, change: { type: 'string' } },

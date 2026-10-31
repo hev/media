@@ -50,7 +50,7 @@ The companion machine-learning image must also be pinned to
 
 ## Read-only photo chat
 
-`/chat` streams a transcript and photo results from the separate `hev-chat/`
+`/chat/<threadId>` restores a persistent thread; `/chat` streams a transcript and photo results from the separate `hev-chat/`
 Node service. It uses the caller's Immich session cookie or bearer token, validates
 it with `/users/me`, and passes that identity to every SDK call. There is no service
 API key and no media mutation tool. Search results open Immich's normal viewer.
@@ -73,7 +73,7 @@ Configure the companion container:
 - `ANTHROPIC_MODEL` defaults to `claude-sonnet-5-5`; choose an available model
   for the deployment's Anthropic account if that identifier is unavailable.
 - `PORT=2290` by default. Publish only to `127.0.0.1:<port>:2290`, on the same
-  private Compose network as Immich. No volume or database is needed.
+  private Compose network as Immich. Mount a named volume at `/data` (owned by uid 1000). `HEV_CHAT_DATA` defaults to `/data` in the image. SQLite stores user-owned threads, transcripts, selections and job ownership there; back it up before recreation.
 
 Route the service at the existing origin with:
 
@@ -99,3 +99,7 @@ administrator access. Paths travel only from chat to the authenticated launcher,
 never to the model or browser. An admin session is checked on every preview
 request, including byte ranges. The chat transcript shows updating edit cards
 and a header list. Instagram posting remains a separate human action in Buffer.
+
+Revisions retain their own previews. The Publish button sends only the chosen
+revision to Buffer as a draft, once; rendering and revising never create drafts.
+An ambiguous publish failure stays claimed for ledger inspection before recovery.
