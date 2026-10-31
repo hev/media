@@ -33,6 +33,7 @@ const active = new Set<string>();
 const server = createServer(async (req, res) => {
   // Serve strips /hev-chat; accepting both also supports simple reverse proxies.
   const path = req.url?.split('?')[0].replace(/^\/hev-chat(?=\/)/, '');
+  res.setHeader('Cache-Control', 'no-store');
   if (path === '/health' && req.method === 'GET') {
     res.end('ok');
     return;
@@ -75,9 +76,11 @@ const server = createServer(async (req, res) => {
       if (user.isAdmin) {
         const response = await launcher('/jobs');
         if (response.ok) {
-          const legacy = ((await response.json()) as any[]).filter(
-            (j) => !j.threadId && !threads.assigned(j.id),
-          );
+          const legacy = ((await response.json()) as any[])
+            .filter((j) => !j.threadId && !threads.assigned(j.id))
+            .sort((a, b) =>
+              String(a.createdAt).localeCompare(String(b.createdAt)),
+            );
           if (legacy.length) {
             const earlier =
               threads.list(identity).find((t) => t.title === 'Earlier edits') ??
@@ -148,7 +151,11 @@ const server = createServer(async (req, res) => {
           res.writeHead(400).end();
           return;
         }
-        thread.selected = assets.filter((a) => body.ids.includes(a.id));
+        thread.selected = [
+          ...new Map(
+            assets.filter((a) => body.ids.includes(a.id)).map((a) => [a.id, a]),
+          ).values(),
+        ];
         threads.save(identity, thread);
       }
       if (route[2] === 'edits') {
@@ -382,7 +389,11 @@ const server = createServer(async (req, res) => {
           }
           if (result?.assets) {
             emit({ type: 'assets', assets: result.assets });
-            answer.assets.push(...result.assets);
+            answer.assets = [
+              ...new Map(
+                [...answer.assets, ...result.assets].map((a) => [a.id, a]),
+              ).values(),
+            ];
             threads.save(identity, thread);
             shortlists.remember(shortlistKey, result.assets);
           }
