@@ -1,0 +1,9 @@
+**
+!packages
+!packages/sdk
+!packages/sdk/**
+!hev-chat
+!hev-chat/**
+**/node_modules
+**/build
+**/.env
