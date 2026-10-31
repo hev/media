@@ -14,6 +14,8 @@ COPY --from=build /packages/sdk /packages/sdk
 COPY --from=build /app/package.json ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/build ./build
+ENV HEV_CHAT_DATA=/data
+RUN mkdir -p /data && chown node:node /data
 USER node
 EXPOSE 2290
 CMD ["node", "build/server.js"]
