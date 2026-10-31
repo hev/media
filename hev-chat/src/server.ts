@@ -10,7 +10,16 @@ import {
 
 const baseUrl = process.env.IMMICH_URL ?? 'http://immich-server:2283/api';
 const model = process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-5-5';
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const apiKey = process.env.ANTHROPIC_API_KEY;
+if (!apiKey) throw new Error('ANTHROPIC_API_KEY is required');
+const client = new Anthropic({
+  apiKey,
+  authToken: null,
+  baseURL: 'https://api.anthropic.com',
+  logLevel: 'off',
+  timeout: 90000,
+  maxRetries: 1,
+});
 const server = createServer(async (req, res) => {
   // Serve strips /hev-chat; accepting both also supports simple reverse proxies.
   const path = req.url?.replace(/^\/hev-chat(?=\/)/, '');
@@ -38,27 +47,31 @@ const server = createServer(async (req, res) => {
   res.on('close', () => abort.abort());
   try {
     const options = await requireSession(req.headers, baseUrl);
-    let body = '';
+    const chunks: Buffer[] = [];
+    let bytes = 0;
     for await (const chunk of req) {
-      body += chunk;
-      if (Buffer.byteLength(body) > 32000) {
+      bytes += chunk.length;
+      if (bytes > 32000) {
         res.writeHead(413).end();
         return;
       }
+      chunks.push(chunk);
     }
     let input;
     try {
-      input = JSON.parse(body);
+      input = JSON.parse(Buffer.concat(chunks).toString('utf8'));
     } catch {
       res.writeHead(400).end();
       return;
     }
     if (
+      !input ||
       !Array.isArray(input.messages) ||
       input.messages.length < 1 ||
       input.messages.length > 20 ||
       input.messages.some(
         (m: any) =>
+          !m ||
           !['user', 'assistant'].includes(m.role) ||
           typeof m.content !== 'string' ||
           m.content.length > 8000,
