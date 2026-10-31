@@ -65,6 +65,7 @@ export const tools = [
     input_schema: {
       ...object,
       properties: {
+        type: { type: 'string', enum: ['IMAGE', 'VIDEO'] },
         city: { type: 'string' },
         country: { type: 'string' },
         takenAfter: { type: 'string' },

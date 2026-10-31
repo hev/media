@@ -88,3 +88,14 @@ is a simple unauthenticated liveness check; `/chat` always validates a session.
 The service does not log requests, tokens, upstream errors or the Anthropic key.
 An interrupted request cancels the model stream. Requests are limited to 32 KB,
 20 transcript messages and eight model/tool rounds.
+
+## Video edit drafts
+
+Administrators can shortlist external-library videos, confirm in a later chat
+turn, then launch an edit. `hev-edit/` is the private host launcher; its README
+covers configuration, queue recovery, and the separate Buffer integration gate.
+`start_edit`, `edit_status`, and `revise_edit` use the caller's session to check
+administrator access. Paths travel only from chat to the authenticated launcher,
+never to the model or browser. An admin session is checked on every preview
+request, including byte ranges. The chat transcript shows updating edit cards
+and a header list. Instagram posting remains a separate human action in Buffer.
