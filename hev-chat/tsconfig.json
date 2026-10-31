@@ -1,1 +1,13 @@
-{"compilerOptions":{"target":"ES2023","module":"NodeNext","moduleResolution":"NodeNext","strict":true,"outDir":"build","rootDir":"src","skipLibCheck":true},"include":["src/**/*.ts"],"exclude":["src/**/*.test.ts"]}
+{
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "build",
+    "rootDir": "src",
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "ES2023"
+  },
+  "exclude": ["src/**/*.test.ts"],
+  "include": ["src/**/*.ts"]
+}
