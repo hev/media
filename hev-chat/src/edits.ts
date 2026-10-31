@@ -20,11 +20,12 @@ export const editTools = [
   },
   {
     name: 'edit_status',
-    description: 'Read an edit job status. Admin only.',
+    description:
+      'Read an edit job status. Omit id to list existing jobs and their IDs before selecting one for revision. Admin only.',
     input_schema: {
       ...object,
       properties: { id: { type: 'string' } },
-      required: ['id'],
+      required: [],
     },
   },
   {
@@ -110,6 +111,12 @@ export async function runEditTool(
       caption: input.caption,
     };
   } else {
+    if (name === 'edit_status' && input.id === undefined) {
+      const response = await request('/jobs');
+      if (!response.ok)
+        throw Error('The edit service could not accept this request.');
+      return response.json();
+    }
     if (typeof input.id !== 'string' || !/^[a-f0-9-]{36}$/i.test(input.id))
       throw Error('Invalid job id');
     path += '/' + input.id;
