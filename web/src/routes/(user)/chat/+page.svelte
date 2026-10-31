@@ -5,8 +5,24 @@
   import { authManager } from '$lib/managers/auth-manager.svelte';
   import { getAssetMediaUrl } from '$lib/utils';
   import { getAssetInfo } from '@immich/sdk';
-  import { onDestroy } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
 
+  type Edit = { id: string; state: string; note: string; preview?: string; bufferUrl?: string; revision: number };
+  let edits = $state<Edit[]>([]);
+  let timer: ReturnType<typeof setInterval>;
+  async function refreshEdits() {
+    try {
+      const response = await fetch('/hev-chat/edits');
+      if (response.ok) edits = await response.json();
+    } catch {
+      /* next poll can recover */
+    }
+  }
+  onMount(() => {
+    void refreshEdits();
+    timer = setInterval(() => void refreshEdits(), 3000);
+  });
+  onDestroy(() => clearInterval(timer));
   type Photo = { id: string; originalFileName?: string };
   type Message = { role: 'user' | 'assistant'; content: string; assets: Photo[] };
   let messages = $state<Message[]>([]);
@@ -47,6 +63,12 @@
         switch (event.type) {
           case 'text': {
             messages[index].content += event.text;
+            break;
+          }
+          case 'edit': {
+            const previous = edits.findIndex((job) => job.id === event.job.id);
+            if (previous < 0) edits.push(event.job);
+            else edits[previous] = event.job;
             break;
           }
           case 'assets': {
@@ -98,6 +120,14 @@
     <p class="text-sm opacity-70">
       Your question and matching photo metadata are sent to Anthropic. Original photos stay in Immich.
     </p>
+    {#if edits.length}
+      <nav aria-label="Edits">
+        <span class="font-semibold">Edits: </span>{#each edits as edit (edit.id)}<a
+            class="mr-3 underline"
+            href={`#edit-${edit.id}`}>Reel {edit.revision} · {edit.state}</a
+          >{/each}
+      </nav>
+    {/if}
     <div role="log" aria-label="Chat transcript" class="flex flex-col gap-5">
       {#each messages as message, index (index)}
         <section
@@ -127,6 +157,34 @@
           {/if}
         </section>
       {/each}
+      {#if edits.length}
+        <section aria-label="Edits" class="flex flex-col gap-3">
+          <h2 class="font-semibold">Edits</h2>
+          {#each edits as edit (edit.id)}
+            <article
+              id={`edit-${edit.id}`}
+              aria-label={`Edit ${edit.id}`}
+              class="rounded-2xl border border-immich-primary/30 p-4"
+            >
+              <p class="font-semibold">Reel · revision {edit.revision} · {edit.state}</p>
+              <p role={edit.state === 'failed' ? 'alert' : 'status'}>{edit.note}</p>
+              {#if edit.preview}
+                <video
+                  controls
+                  preload="metadata"
+                  class="mt-3 max-h-96 rounded-xl"
+                  src={`${edit.preview}?revision=${edit.revision}`}
+                >
+                  <track kind="captions" />
+                </video>
+              {/if}
+              {#if edit.bufferUrl}<a class="underline" href={edit.bufferUrl} target="_blank" rel="noreferrer"
+                  >Open in Buffer</a
+                >{/if}
+            </article>
+          {/each}
+        </section>
+      {/if}
     </div>
     {#if error}<p role="alert" class="text-red-600 dark:text-red-300">{error}</p>{/if}
     <form
