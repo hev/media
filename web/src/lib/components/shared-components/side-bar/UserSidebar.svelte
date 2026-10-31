@@ -14,6 +14,7 @@
     mdiAccountOutline,
     mdiArchiveArrowDown,
     mdiArchiveArrowDownOutline,
+    mdiChatOutline,
     mdiCards,
     mdiCardsOutline,
     mdiFolderOutline,
@@ -45,6 +46,8 @@
   {#if featureFlagsManager.value.search}
     <NavbarItem title={$t('explore')} href={Route.explore()} icon={mdiMagnify} />
   {/if}
+
+  <NavbarItem title="Chat" href="/chat" icon={mdiChatOutline} />
 
   {#if featureFlagsManager.value.map}
     <NavbarItem title={$t('map')} href={Route.map()} icon={mdiMapOutline} activeIcon={mdiMap} />
