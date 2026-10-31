@@ -98,3 +98,15 @@ test('status and revisions validate IDs and request shape', async () => {
     ),
   );
 });
+
+test('status can discover existing job IDs for a later conversational revision', async () => {
+  const api: any = { getMyUser: async () => ({ isAdmin: true }) };
+  const request: any = async (path: string) => {
+    assert.equal(path, '/jobs');
+    return Response.json([{ id, state: 'drafted' }]);
+  };
+  assert.deepEqual(
+    await runEditTool('edit_status', {}, options, false, api, request),
+    [{ id, state: 'drafted' }],
+  );
+});
