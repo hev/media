@@ -181,7 +181,7 @@ const server = createServer(async (req, res) => {
                 await runTool(call.name, call.input, options),
               );
           if (isEdit) {
-            emit({ type: 'edit', job: result });
+            for (const job of (Array.isArray(result) ? result : [result])) emit({ type: 'edit', job });
           }
           if (result?.assets) {
             emit({ type: 'assets', assets: result.assets });
