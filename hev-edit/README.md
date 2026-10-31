@@ -12,6 +12,11 @@ Configuration (private values belong outside this public repository):
 - `HEV_EDIT_SECRET`: random shared secret, also injected into chat.
 - `HEV_EDIT_PROMO_SCRIPTS`: absolute path to reviewed TWC `promo/scripts` on main.
 - `HEV_EDIT_VIDEO_SKILL`: absolute path to the video skill.
+- `HEV_EDIT_SOURCE_CONTAINER`: optional existing container with originals mounted
+  read-only at `/external`. When set, stage private original copies through
+  `docker exec cat` before launching the editor; this supports macOS LaunchAgents
+  without granting removable-volume access. `HEV_EDIT_DOCKER_CONTEXT` selects
+  its Docker context. No container or volume is created or changed.
 - `HEV_EDIT_CODEX`: optional executable, defaults to `codex`.
 - `HEV_EDIT_PORT`: defaults to 2291; `HEV_EDIT_BIND` defaults to `127.0.0.1`.
 - `HEV_EDIT_BUFFER_ENABLED`: unset by default. Only set `1` after the TWC
