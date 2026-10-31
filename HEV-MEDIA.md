@@ -1,7 +1,7 @@
 # hev / media
 
 A small web-branding fork of [Immich](https://github.com/immich-app/immich),
-based on **v3.3.1**, licensed under the upstream AGPL-3.0 license.
+based on **v3.3.5**, licensed under the upstream AGPL-3.0 license.
 
 The photo grid, navigation, rounded controls, responsive layouts and playback
 remain upstream Immich. The hev palette, camera-head icon, wordmark, browser
@@ -30,7 +30,7 @@ server release. Do not use the fork's unmodified upstream `main` for deployment.
 
 Build the SDK and web application from the lockfile, then layer `web/build` onto
 the pinned upstream server image using `Dockerfile.hev`. The server code and
-database version stay at v3.3.1. Deployment settings and private paths belong in
+database version stay at v3.3.5. Deployment settings and private paths belong in
 the private `hev/lab` repository, never in this public fork.
 
 ```sh
@@ -38,9 +38,12 @@ npx --yes pnpm@11.27.1 --filter immich-web... install --frozen-lockfile
 npx --yes pnpm@11.27.1 --filter @immich/sdk build
 npx --yes pnpm@11.27.1 --filter immich-web check:svelte
 npx --yes pnpm@11.27.1 --filter immich-web check:typescript
-IMMICH_BUILD=hev-media-v3.3.1 npx --yes pnpm@11.27.1 --filter immich-web build
-docker build -f Dockerfile.hev --build-arg HEV_SOURCE_COMMIT="$(git rev-parse HEAD)" -t hev/media:v3.3.1 .
+IMMICH_BUILD=hev-media-v3.3.5 npx --yes pnpm@11.27.1 --filter immich-web build
+docker build -f Dockerfile.hev --build-arg HEV_SOURCE_COMMIT="$(git rev-parse HEAD)" -t hev/media:v3.3.5 .
 ```
 
 Select the intended Docker context explicitly when more than one is installed.
 The Dockerfile-specific ignore file sends only the web output as build context.
+
+The companion machine-learning image must also be pinned to
+`ghcr.io/immich-app/immich-machine-learning:v3.3.5`.
