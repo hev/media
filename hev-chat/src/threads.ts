@@ -11,6 +11,7 @@ export type Thread = {
   title: string;
   messages: Turn[];
   selected: any[];
+  smartQuery?: string;
   jobs: string[];
   updatedAt: number;
 };

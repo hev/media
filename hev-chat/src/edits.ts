@@ -4,6 +4,16 @@ type Options = ReturnType<typeof sessionOptions>;
 const object = { type: 'object' as const, additionalProperties: false };
 export const editTools = [
   {
+    name: 'open_in_imovie',
+    description:
+      'Return a private iMovie kit download link for an existing rendered edit revision. No publishing or Buffer action.',
+    input_schema: {
+      ...object,
+      properties: { id: { type: 'string' }, revision: { type: 'number' } },
+      required: ['id', 'revision'],
+    },
+  },
+  {
     name: 'start_edit',
     description:
       'Start a video edit ONLY after showing the asset shortlist and receiving explicit confirmation in the latest user message. Admin only. Returns an edit job.',
@@ -120,6 +130,20 @@ export async function runEditTool(
     if (typeof input.id !== 'string' || !/^[a-f0-9-]{36}$/i.test(input.id))
       throw Error('Invalid job id');
     path += '/' + input.id;
+    if (name === 'open_in_imovie') {
+      if (!Number.isInteger(input.revision) || input.revision < 1)
+        throw Error('Invalid revision');
+      const response = await request(path);
+      if (!response.ok) throw Error('Job unavailable');
+      const job = await response.json();
+      if (!job.revisions?.some((r: any) => r.revision === input.revision))
+        throw Error('Revision unavailable');
+      return {
+        ...job,
+        download: `/hev-chat/edits/${input.id}/imovie-kit?revision=${input.revision}`,
+      };
+    }
+
     if (name === 'revise_edit') {
       if (
         typeof input.change !== 'string' ||
