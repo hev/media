@@ -9,6 +9,11 @@ The queue coalesces requests, persists state, and holds `/tmp/hev-imovie-screen.
 through native work. Another active mini peer or an existing lock leaves the job
 waiting. Never delete a lock until its owner and the desktop are inspected. A
 service interruption marks unfinished work failed rather than replaying UI changes.
+Queued builds which have not begun resume on restart. A coordinator doing only
+shell/headless work can explicitly release its own desktop reservation for thirty
+minutes with `bin/imovie-release-screen`; `--reclaim` ends that release. Leases
+match the exact peer PID/start time and expire; they cannot exempt another agent.
+The coordinator must avoid desktop use until the builder releases its lock.
 Failures retain private input, logs and partial libraries for inspection. They are
 not automatically retried. After inspecting and preserving evidence, an operator
 can move the failed state file aside to admit a fresh request.
