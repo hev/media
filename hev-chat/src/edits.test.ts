@@ -110,3 +110,54 @@ test('status can discover existing job IDs for a later conversational revision',
     [{ id, state: 'drafted' }],
   );
 });
+
+test('iMovie tool validates revision and returns the authenticated download link without publishing', async () => {
+  const api: any = { getMyUser: async () => ({ isAdmin: true }) };
+  const paths: string[] = [];
+  const request: any = async (path: string) => {
+    paths.push(path);
+    return Response.json({ id, revisions: [{ revision: 2 }] });
+  };
+  const result = await runEditTool(
+    'open_in_imovie',
+    { id, revision: 2 },
+    options,
+    false,
+    api,
+    request,
+  );
+  assert.equal(result.download, `/hev-chat/edits/${id}/imovie-kit?revision=2`);
+  assert.deepEqual(paths, ['/jobs/' + id]);
+  await assert.rejects(
+    runEditTool(
+      'open_in_imovie',
+      { id, revision: 0 },
+      options,
+      false,
+      api,
+      request,
+    ),
+  );
+  await assert.rejects(
+    runEditTool(
+      'open_in_imovie',
+      { id, revision: 1 },
+      options,
+      false,
+      api,
+      request,
+    ),
+  );
+  api.getMyUser = async () => ({ isAdmin: false });
+  await assert.rejects(
+    runEditTool(
+      'open_in_imovie',
+      { id, revision: 2 },
+      options,
+      false,
+      api,
+      request,
+    ),
+    /administrators/,
+  );
+});

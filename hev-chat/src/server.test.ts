@@ -112,3 +112,89 @@ test('HTTP threads authenticate and isolate owners for reads, changes, deletion 
     rmSync(dir, { recursive: true });
   }
 });
+
+test('iMovie endpoint checks session, admin and owner before proxying ZIP bytes', async () => {
+  const { Threads } = await import('./threads.js');
+  const id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+  const dir = mkdtempSync(join(tmpdir(), 'kit-http-'));
+  const db = new Threads(join(dir, 'threads.sqlite'));
+  const thread = db.create('owner');
+  db.claim('owner', thread, id);
+  db.db.close();
+  const upstream = createServer((req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.end(
+      JSON.stringify({
+        id: req.headers.authorization?.slice(7),
+        isAdmin: req.headers.authorization !== 'Bearer viewer',
+      }),
+    );
+  });
+  let builds = 0;
+  const launcher = createServer((req, res) => {
+    assert.equal(req.headers.authorization, 'Bearer launcher-secret');
+    if (req.url?.includes('/imovie-kit')) {
+      builds++;
+      assert.equal(req.method, 'POST');
+      res
+        .writeHead(200, {
+          'Content-Type': 'application/zip',
+          'Content-Disposition': 'attachment; filename="kit.zip"',
+        })
+        .end('ZIP');
+    } else res.end(JSON.stringify({ id }));
+  });
+  const upstreamPort = await listen(upstream),
+    launcherPort = await listen(launcher);
+  const reserve = createServer();
+  const port = await listen(reserve);
+  await new Promise<void>((r) => reserve.close(() => r()));
+  const child = spawn(process.execPath, ['--import', 'tsx', 'src/server.ts'], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      PORT: String(port),
+      IMMICH_URL: `http://127.0.0.1:${upstreamPort}`,
+      ANTHROPIC_API_KEY: 'test',
+      HEV_CHAT_DATA: dir,
+      HEV_EDIT_URL: `http://127.0.0.1:${launcherPort}`,
+      HEV_EDIT_SECRET: 'launcher-secret',
+    },
+    stdio: 'ignore',
+  });
+  const closed = new Promise((r) => child.on('close', r));
+  const url = `http://127.0.0.1:${port}`;
+  try {
+    const until = Date.now() + 10000;
+    while (true) {
+      try {
+        if ((await fetch(url + '/health')).ok) break;
+      } catch {}
+      if (Date.now() > until) throw Error('Server did not start');
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    const kit = `/edits/${id}/imovie-kit?revision=1`;
+    assert.equal((await fetch(url + kit)).status, 401);
+    const request = (user: string) =>
+      fetch(url + kit, { headers: { Authorization: 'Bearer ' + user } });
+    assert.equal((await request('viewer')).status, 403);
+    assert.equal((await request('other-admin')).status, 404);
+    assert.equal(builds, 0);
+    const response = await request('owner');
+    assert.equal(response.status, 200);
+    assert.equal(await response.text(), 'ZIP');
+    assert.equal(
+      response.headers.get('content-disposition'),
+      'attachment; filename="kit.zip"',
+    );
+    assert.equal(builds, 1);
+  } finally {
+    child.kill();
+    await closed;
+    await Promise.all([
+      new Promise<void>((r) => upstream.close(() => r())),
+      new Promise<void>((r) => launcher.close(() => r())),
+    ]);
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

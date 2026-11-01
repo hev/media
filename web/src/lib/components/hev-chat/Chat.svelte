@@ -85,6 +85,37 @@
       await refreshEdits();
     }
   }
+  let kitProgress = $state<Record<string, string>>({});
+  async function imovie(edit: Edit) {
+    const revision = revisions[edit.id] ?? edit.revision;
+    const key = edit.id + ':' + revision;
+    kitProgress[key] = 'Building iMovie kit…';
+    try {
+      const response = await fetch(`/hev-chat/edits/${edit.id}/imovie-kit?revision=${revision}`);
+      if (!response.ok) throw Error('iMovie kit could not be built. Please try again.');
+      const length = Number(response.headers.get('content-length'));
+      const reader = response.body!.getReader();
+      const chunks: BlobPart[] = [];
+      let bytes = 0;
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        bytes += value.length;
+        kitProgress[key] = length ? `Downloading ${Math.round((bytes / length) * 100)}%` : 'Downloading…';
+      }
+      const url = URL.createObjectURL(new Blob(chunks, { type: 'application/zip' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `imovie-${edit.id}-r${revision}.zip`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (error_) {
+      error = String(error_);
+    } finally {
+      delete kitProgress[key];
+    }
+  }
   async function publish(edit: Edit) {
     try {
       await api('/edits/' + edit.id + '/publish', 'POST', { revision: revisions[edit.id] ?? edit.revision });
@@ -359,6 +390,15 @@
                     disabled={busy || ['queued', 'editing', 'rendered'].includes(edit.state)}
                     onclick={() => revise(edit)}>Revise</button
                   >
+                  {#if revision || edit.preview}
+                    <button
+                      type="button"
+                      class="underline"
+                      disabled={!!kitProgress[edit.id + ':' + (revisions[edit.id] ?? edit.revision)]}
+                      onclick={() => imovie(edit)}
+                      >{kitProgress[edit.id + ':' + (revisions[edit.id] ?? edit.revision)] ?? 'Open in iMovie'}</button
+                    >
+                  {/if}
                   {#if revision?.bufferUrl}<a
                       class="underline"
                       href={revision.bufferUrl}
