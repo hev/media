@@ -97,9 +97,17 @@ async function probe(file) {
     ).stdout,
   );
 }
+export function mediaDuration(info) {
+  const values = [
+    Number(info.format?.duration),
+    Number(info.streams?.find((s) => s.codec_type === "video")?.duration),
+  ].filter((n) => Number.isFinite(n) && n > 0);
+  if (!values.length) throw Error("Video duration unavailable");
+  return Math.min(...values);
+}
 async function trim(source, dest, start, end) {
   const info = await probe(source);
-  const duration = Number(info.format.duration);
+  const duration = mediaDuration(info);
   start = Math.max(0, start);
   end = Math.min(duration, end);
   if (!(end > start)) throw Error("Source range unavailable");
@@ -259,7 +267,7 @@ export async function buildKit({
       );
       for (const asset of extras) {
         const source = await resolveExtra(asset);
-        const duration = Number((await probe(source)).format.duration);
+        const duration = mediaDuration(await probe(source));
         const selected = extraRange(
           duration,
           inspection[asset.id] ??
