@@ -176,3 +176,19 @@ export async function runEditTool(
     throw Error('The edit service could not accept this request.');
   return response.json();
 }
+
+
+export async function imovieCandidates(thread: {selected: any[]; messages: {assets:any[]}[]; smartQuery?:string},options: Options, api = sdk) {
+ const seen = new Set<string>();
+ const candidates = [...thread.selected,...thread.messages.flatMap(m=>m.assets)].filter(a=>a.type === 'VIDEO' && !seen.has(a.id) && !!seen.add(a.id));
+ if(thread.smartQuery) {
+  const hits = await api.searchSmart({smartSearchDto:{query:thread.smartQuery,type:sdk.AssetTypeEnum.Video,size:40}},options);
+  for(const a of hits.assets.items) if(!seen.has(a.id)) {seen.add(a.id);candidates.push(a);}
+ }
+ const result=[];
+ for(const a of candidates.slice(0,40)) {
+  const asset=await api.getAssetInfo({id:a.id},options);
+  if(asset.type === 'VIDEO' && asset.originalPath?.startsWith('/external/')) result.push({id:asset.id,type:asset.type,originalPath:asset.originalPath});
+ }
+ return result;
+}
