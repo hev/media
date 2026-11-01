@@ -183,3 +183,22 @@ test("extras use inspection ranges when present, otherwise the middle fifteen se
   });
   assert.deepEqual(extraRange(6), { start: 0, end: 6 });
 });
+
+test("source video duration bounds clips when container metadata overstates footage", async () => {
+  const { mediaDuration } = await import("./imovie-kit.mjs");
+  assert.equal(
+    mediaDuration({
+      format: { duration: "6" },
+      streams: [{ codec_type: "video", duration: "5.038367" }],
+    }),
+    5.038367,
+  );
+  assert.equal(
+    mediaDuration({
+      format: { duration: "6" },
+      streams: [{ codec_type: "video" }],
+    }),
+    6,
+  );
+  assert.throws(() => mediaDuration({ format: {}, streams: [] }));
+});
