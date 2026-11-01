@@ -164,3 +164,12 @@ test('iMovie tool validates revision and returns the authenticated download link
     /administrators/,
   );
 });
+
+
+test('browser and text iMovie requests share validated shortlist and theme extras',async()=>{
+ const {imovieCandidates}=await import('./edits.js');
+ const calls:string[]=[];
+ const api:any={searchSmart:async()=>({assets:{items:[{id:'theme'},{id:'chosen'}]}}),getAssetInfo:async({id}:{id:string})=>{calls.push(id);return {id,type:'VIDEO',originalPath:id === 'foreign' ? '/elsewhere/file' : '/external/'+id};}};
+ const result=await imovieCandidates({selected:[{id:'chosen',type:'VIDEO'},{id:'foreign',type:'VIDEO'}],messages:[{assets:[{id:'chosen',type:'VIDEO'}]}],smartQuery:'beach'},options,api);
+ assert.deepEqual(result.map(a=>a.id),['chosen','theme']);assert.deepEqual(calls,['chosen','foreign','theme']);
+});
