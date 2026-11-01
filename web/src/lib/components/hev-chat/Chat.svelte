@@ -85,35 +85,32 @@
       await refreshEdits();
     }
   }
-  let kitProgress = $state<Record<string, string>>({});
+  type LibraryBuild = { state: string; message: string; command?: string };
+  let libraryBuilds = $state<Record<string, LibraryBuild>>({});
+  let libraryPending = $state<Record<string, boolean>>({});
   async function imovie(edit: Edit) {
     const revision = revisions[edit.id] ?? edit.revision;
     const key = edit.id + ':' + revision;
-    kitProgress[key] = 'Building iMovie kit…';
+    libraryPending[key] = true;
     try {
-      const response = await fetch(`/hev-chat/edits/${edit.id}/imovie-kit?revision=${revision}`);
-      if (!response.ok) throw Error('iMovie kit could not be built. Please try again.');
-      const length = Number(response.headers.get('content-length'));
-      const reader = response.body!.getReader();
-      const chunks: BlobPart[] = [];
-      let bytes = 0;
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        chunks.push(value);
-        bytes += value.length;
-        kitProgress[key] = length ? `Downloading ${Math.round((bytes / length) * 100)}%` : 'Downloading…';
-      }
-      const url = URL.createObjectURL(new Blob(chunks, { type: 'application/zip' }));
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `imovie-${edit.id}-r${revision}.zip`;
-      link.click();
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      libraryBuilds[key] = await api(`/edits/${edit.id}/imovie-library?revision=${revision}`, 'POST');
     } catch (error_) {
       error = String(error_);
     } finally {
-      delete kitProgress[key];
+      libraryPending[key] = false;
+    }
+  }
+  async function refreshLibraries() {
+    for (const edit of edits) {
+      const revision = revisions[edit.id] ?? edit.revision;
+      const key = edit.id + ':' + revision;
+      // GET only reads existing state; viewing a card never starts a build.
+      try {
+        const response = await fetch(`/hev-chat/edits/${edit.id}/imovie-library?revision=${revision}`);
+        if (response.ok) libraryBuilds[key] = await response.json();
+      } catch {
+        /* preserve last observed state during a network interruption */
+      }
     }
   }
   async function publish(edit: Edit) {
@@ -142,6 +139,7 @@
       const response = await fetch('/hev-chat/threads/' + current.id + '/edits');
       if (response.ok) {
         edits = await response.json();
+        await refreshLibraries();
         await scrollLatest();
       }
     } catch {
@@ -391,12 +389,45 @@
                     onclick={() => revise(edit)}>Revise</button
                   >
                   {#if revision || edit.preview}
-                    <button
-                      type="button"
-                      class="underline"
-                      disabled={!!kitProgress[edit.id + ':' + (revisions[edit.id] ?? edit.revision)]}
-                      onclick={() => imovie(edit)}
-                      >{kitProgress[edit.id + ':' + (revisions[edit.id] ?? edit.revision)] ?? 'Open in iMovie'}</button
+                    {@const libraryKey = edit.id + ':' + (revisions[edit.id] ?? edit.revision)}
+                    {@const library = libraryBuilds[libraryKey]}
+                    {#if library?.state !== 'ready'}<button
+                        type="button"
+                        class="underline"
+                        disabled={libraryPending[libraryKey] ||
+                          ['queued', 'waiting', 'building', 'ready'].includes(library?.state ?? '')}
+                        onclick={() => imovie(edit)}>Open in iMovie</button
+                      >{/if}
+                    {#if library}
+                      <p role="status" class="mt-2">{library.message}</p>
+                      {#if library.state === 'ready' && library.command}
+                        <a
+                          class="mt-2 inline-block rounded-lg bg-primary p-2 text-on-primary"
+                          href={`/hev-chat/edits/${edit.id}/imovie-library-download?revision=${revisions[edit.id] ?? edit.revision}`}
+                          download>Download for iMovie</a
+                        >
+                        <p class="mt-2">Unzip, then double-click to open in iMovie.</p>
+                        <details class="mt-2">
+                          <summary>Copy laptop command</summary>
+                          <p class="mt-2">Run on your laptop:</p>
+                          <input
+                            aria-label="iMovie laptop command"
+                            readonly
+                            value={library.command}
+                            class="w-full rounded border p-2 font-mono"
+                          />
+                          <button
+                            type="button"
+                            class="underline"
+                            onclick={() => navigator.clipboard.writeText(library.command!)}>Copy command</button
+                          >
+                        </details>
+                      {/if}
+                    {/if}
+                    <a
+                      class="ml-3 underline"
+                      href={`/hev-chat/edits/${edit.id}/imovie-kit?revision=${revisions[edit.id] ?? edit.revision}`}
+                      >Manual kit</a
                     >
                   {/if}
                   {#if revision?.bufferUrl}<a

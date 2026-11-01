@@ -142,6 +142,21 @@ test('iMovie endpoint checks session, admin and owner before proxying ZIP bytes'
           'Content-Disposition': 'attachment; filename="kit.zip"',
         })
         .end('ZIP');
+    } else if (req.url?.includes('/imovie-library-download')) {
+      builds++;
+      res
+        .writeHead(200, {
+          'Content-Type': 'application/zip',
+          'Content-Disposition':
+            'attachment; filename="edit.imovielibrary.zip"',
+        })
+        .end('LIBRARY-ZIP');
+    } else if (req.url?.includes('/imovie-library')) {
+      builds++;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(
+        JSON.stringify({ state: req.method === 'POST' ? 'queued' : 'idle' }),
+      );
     } else res.end(JSON.stringify({ id }));
   });
   const upstreamPort = await listen(upstream),
@@ -188,6 +203,58 @@ test('iMovie endpoint checks session, admin and owner before proxying ZIP bytes'
       'attachment; filename="kit.zip"',
     );
     assert.equal(builds, 1);
+    const library = `/edits/${id}/imovie-library?revision=1`;
+    const libRequest = (user: string, method = 'GET') =>
+      fetch(url + library, {
+        method,
+        headers: {
+          Authorization: 'Bearer ' + user,
+          'Content-Type': 'application/json',
+        },
+        ...(method === 'POST' ? { body: '{}' } : {}),
+      });
+    assert.equal((await fetch(url + library)).status, 401);
+    assert.equal((await libRequest('viewer', 'POST')).status, 403);
+    assert.equal((await libRequest('other-admin', 'POST')).status, 404);
+    assert.equal(builds, 1);
+    assert.equal((await (await libRequest('owner')).json()).state, 'idle');
+    assert.equal(
+      (await (await libRequest('owner', 'POST')).json()).state,
+      'queued',
+    );
+    assert.equal(builds, 3);
+    const download = library.replace(
+      '/imovie-library?',
+      '/imovie-library-download?',
+    );
+    assert.equal((await fetch(url + download)).status, 401);
+    assert.equal(
+      (
+        await fetch(url + download, {
+          headers: { Authorization: 'Bearer viewer' },
+        })
+      ).status,
+      403,
+    );
+    assert.equal(
+      (
+        await fetch(url + download, {
+          headers: { Authorization: 'Bearer other-admin' },
+        })
+      ).status,
+      404,
+    );
+    assert.equal(builds, 3);
+    const archive = await fetch(url + download, {
+      headers: { Authorization: 'Bearer owner' },
+    });
+    assert.equal(archive.status, 200);
+    assert.equal(await archive.text(), 'LIBRARY-ZIP');
+    assert.match(
+      archive.headers.get('content-disposition')!,
+      /imovielibrary.zip/,
+    );
+    assert.equal(builds, 4);
   } finally {
     child.kill();
     await closed;

@@ -1,0 +1,30 @@
+#!/bin/sh
+set -eu
+usage() { echo 'Usage: imovie-open <job-id> [revision]' >&2; exit 2; }
+[ "$#" -ge 1 ] && [ "$#" -le 2 ] || usage
+job=$1
+case "$job" in *[!a-f0-9-]*|'') usage;; esac
+[ "${#job}" -eq 36 ] || usage
+host=${IMOVIE_HOST:-mini}
+case "$host" in *[!a-zA-Z0-9._-]*|''|-*) usage;; esac
+revision=${2:-}
+if [ -z "$revision" ]; then
+  revision=$(ssh "$host" "cat dispatch/edits/$job/job.json" | sed -n 's/.*"revision"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' | head -n 1)
+fi
+case "$revision" in *[!0-9]*|''|0|0*) usage;; esac
+# Remote paths are discovered over the existing mini SSH alias. No credentials.
+metadata=$(ssh "$host" "cat dispatch/edits/$job/imovie/state-r$revision.json")
+case "$metadata" in *'"state":"ready"'*) ;; *) echo 'Library is not ready on the mini.' >&2; exit 1;; esac
+remote=$(printf '%s' "$metadata" | sed -n 's/.*"zip":"\([^"]*\)".*/\1/p')
+case "$remote" in /Users/hev/dispatch/edits/"$job"/imovie/*.imovielibrary.zip) ;; *) echo 'Library is not ready on the mini.' >&2; exit 1;; esac
+case "$remote" in *[!a-zA-Z0-9/._-]*) echo 'Invalid library path.' >&2; exit 1;; esac
+folder=$HOME/Movies/hev-video/$job
+mkdir -p "$folder"
+archive=$folder/$(basename "$remote")
+if [ -d "${archive%.zip}" ]; then open "${archive%.zip}"; exit; fi
+trap 'rm -f "$archive.download"' 0 HUP INT TERM
+scp "$host:$remote" "$archive.download"
+mv "$archive.download" "$archive"
+ditto -x -k "$archive" "$folder"
+rm "$archive"
+open "${archive%.zip}"
