@@ -144,7 +144,7 @@ test("library audit rejects escaping media links and permits internal cache link
 test("revision and framing validation preserve fit/focus and reject invalid values", () => {
   assert.throws(() => revisionKey(job, 3));
   assert.throws(() => revisionKey({ ...job, id: "../../x" }, 1));
-  assert.throws(() => revisionKey({ ...job, state: "editing" }, 1));
+  assert.throws(() => revisionKey({ ...job, state: "editing" }, 2));
   assert.match(
     frameFilter(
       { fit: "fill", focus: 0.8 },
@@ -157,4 +157,25 @@ test("revision and framing validation preserve fit/focus and reject invalid valu
     /boxblur=40:5/,
   );
   assert.throws(() => frameFilter({ focus: 2 }, {}));
+});
+
+
+test('desktop release is bound to exact peer process and expiry',async()=>{
+ const {screenBusy,released}=await import('./imovie-screen.mjs');
+ const peer={agent_pid:123,agent_started:456,state:'working',role:'boh'};
+ const lease={pid:123,started:456,until:Date.now()+60000};
+ assert.equal(await screenBusy({panes:[peer]},async()=>lease),false);
+ assert.equal(await screenBusy({panes:[peer]},async()=>({...lease,started:455})),true);
+ assert.equal(released(peer,{...lease,until:Date.now()-1}),false);
+ assert.equal(released(peer,{...lease,until:Date.now()+3600000}),false);
+ assert.equal(await screenBusy({panes:[peer]},async()=>{throw Error('unavailable')}),true);
+});
+
+test('restart resumes queued work before desktop entry but preserves ready cache',async t=>{
+ const f=await fixture(t);const folder=path.join(f.root,job.id,'imovie');await mkdir(folder,{recursive:true});
+ await writeFile(path.join(folder,'state-r1.json'),JSON.stringify({id:job.id,revision:1,state:'waiting'}));
+ let calls=0;const q=new LibraryQueue({...f,build:async()=>{calls++;return f;}});
+ await q.restore([job]);await q.drain();assert.equal(calls,1);
+ const fresh=new LibraryQueue({...f,build:()=>assert.fail('ready replayed')});
+ assert.equal((await fresh.status(job,1)).state,'ready');
 });

@@ -24,7 +24,7 @@ export function revisionKey(job, revision) {
     !Number.isInteger(revision) ||
     revision < 1 ||
     revision > job.revision ||
-    ["queued", "editing"].includes(job.state)
+    (revision === job.revision && ["queued", "editing"].includes(job.state))
   )
     throw Error("Rendered revision unavailable");
   return `${job.id}/r${revision}`;
@@ -117,6 +117,16 @@ export class LibraryQueue {
     await writeFile(file + ".tmp", JSON.stringify(item), { mode: 0o600 });
     await rename(file + ".tmp", file);
   }
+  async restore(jobs) {
+    for (const job of jobs) {
+      let files;
+      try { files = await readdir(path.join(this.root,job.id,'imovie')); } catch(e) { if(e.code === 'ENOENT') continue; throw e; }
+      for (const file of files) {
+        const match = file.match(/^state-r([1-9][0-9]*)\.json$/);
+        if (match) await this.request(job,Number(match[1]));
+      }
+    }
+  }
   async status(job, revision) {
     const key = revisionKey(job, revision);
     if (this.jobs.has(key)) return this.jobs.get(key);
@@ -127,7 +137,7 @@ export class LibraryQueue {
           "utf8",
         ),
       );
-      if (["queued", "building", "waiting"].includes(item.state)) {
+      if (item.state === "building" || (item.startedAt && ["waiting","queued"].includes(item.state))) {
         Object.assign(item, {
           state: "failed",
           message:
@@ -171,16 +181,18 @@ export class LibraryQueue {
         return item;
       }
       // An interrupted desktop operation needs inspection, never a silent replay.
-      if (["building", "waiting", "queued"].includes(item.state))
+      if (item.state === "building" || (item.startedAt && ["waiting","queued"].includes(item.state)))
         item = {
           ...item,
           state: "failed",
           message:
             "Library build interrupted. Inspect the mini before requesting a rebuild.",
         };
-    } catch {
+    } catch(e) {
+      if(e.code !== 'ENOENT') throw e;
       item = null;
     }
+    if (item && ['queued','waiting'].includes(item.state) && !item.startedAt) item.state = 'queued';
     item ??= {
       id: job.id,
       revision,
@@ -225,6 +237,7 @@ export class LibraryQueue {
             await update("waiting", "Waiting for the mini's screen");
             continue;
           }
+          item.startedAt = Date.now();
           await update("building", "Building editable iMovie library");
           const result = await this.build(item, update);
           await auditLibrary(result.library, result.expectedMedia);

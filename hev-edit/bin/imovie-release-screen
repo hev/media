@@ -1,0 +1,4 @@
+#!/usr/bin/env node
+import {releaseScreen} from '../imovie-screen.mjs';
+if(process.argv.length > 3 || (process.argv[2] && process.argv[2] !== '--reclaim')) throw Error('Usage: imovie-release-screen [--reclaim]');
+console.log(await releaseScreen(process.argv[2] === '--reclaim'));
