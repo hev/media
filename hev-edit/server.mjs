@@ -183,7 +183,11 @@ for (const id of await readdir(root)) {
   const job = JSON.parse(
     await readFile(path.join(root, id, "job.json"), "utf8"),
   );
-  if (!["drafted", "failed", "queued", "uploading"].includes(job.state)) {
+  if (
+    !["drafted", "failed", "queued", "uploading", "rendered"].includes(
+      job.state,
+    )
+  ) {
     job.state = "failed";
     job.note = "Service interrupted; inspect artifacts before revising";
     await save(job);

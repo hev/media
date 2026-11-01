@@ -124,7 +124,13 @@ test("ZIP build preserves ordered media ranges, source audio, titles and separat
     const kit = JSON.parse(
       await readFile(path.join(unpack, "kit.json"), "utf8"),
     );
-    assert.deepEqual(kit.clips[0].range, { start: 0, end: 4, duration: 4 });
+    assert.deepEqual(kit.clips[0].range, {
+      start: 0,
+      end: 4,
+      duration: 4,
+      method: "encode",
+    });
+    assert.equal(kit.extras[0].range.method, "copy");
     assert.equal(kit.extras.length, 4);
     assert.ok(kit.extras.every((a) => a.assetId !== "one"));
     assert.equal(

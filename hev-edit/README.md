@@ -46,13 +46,13 @@ retained for review; this service does not implement retention deletion.
 
 `GET /jobs/:id/imovie-kit?revision=N` builds a private ZIP, cached per revision.
 The admin chat proxy also supplies unused shortlist and same-query smart-search
-video candidates with a private POST. Four to eight extras are required. Builds
+video candidates with a private POST. Four unused extras are included, in shortlist then search rank order. Builds
 coalesce concurrently and only atomically publish a completed ZIP. No Buffer
 operation is involved. Requires host `ffmpeg`, `ffprobe`, and `/usr/bin/zip`.
 
 Each numbered shot retains native geometry, cadence and audio, with up to one
-second of handles on either side. Arbitrary source boundaries are decoded and
-encoded at H.264 CRF 16 with PCM audio. `kit.json` records exact source and
+second of handles on either side. Keyframe-aligned ranges are stream copied; arbitrary boundaries are decoded
+and encoded at H.264 CRF 16 with PCM audio. `kit.json` records exact source and
 handle ranges; `project: null` reserves a future native-project addition.
 `cut-N.json` is captured before revisions advance and after renders; historical
 revisions without a saved cut fail rather than using a later timeline. Kits
