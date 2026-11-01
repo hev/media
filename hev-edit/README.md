@@ -62,3 +62,8 @@ fail explicitly; partial ZIPs are never served.
 Optional worker `inspection.json` supplies an asset-ID map or `clips` array with
 `assetId` and `bestRange: {in,out}` (seconds). Extras use these inspected ranges,
 capped at twenty seconds; otherwise they use the middle fifteen seconds.
+
+Native libraries are available through `POST /jobs/:id/imovie-library?revision=N`,
+with inert GET status and a ready-only `/imovie-library-download` stream. See
+[the native handoff workflow](IMOVIE-LIBRARY.md). The browser's Download for
+iMovie action delivers the library ZIP; users unzip and double-click it.

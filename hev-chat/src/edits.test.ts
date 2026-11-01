@@ -127,7 +127,10 @@ test('iMovie tool validates revision and returns the authenticated download link
     request,
   );
   assert.equal(result.download, `/hev-chat/edits/${id}/imovie-kit?revision=2`);
-  assert.deepEqual(paths, ['/jobs/' + id]);
+  assert.deepEqual(paths, [
+    '/jobs/' + id,
+    '/jobs/' + id + '/imovie-library?revision=2',
+  ]);
   await assert.rejects(
     runEditTool(
       'open_in_imovie',

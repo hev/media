@@ -6,7 +6,7 @@ export const editTools = [
   {
     name: 'open_in_imovie',
     description:
-      'Return a private iMovie kit download link for an existing rendered edit revision. No publishing or Buffer action.',
+      'Queue an editable native iMovie library for a rendered edit revision. Returns build status and laptop pull command. No publishing or Buffer action.',
     input_schema: {
       ...object,
       properties: { id: { type: 'string' }, revision: { type: 'number' } },
@@ -138,8 +138,15 @@ export async function runEditTool(
       const job = await response.json();
       if (!job.revisions?.some((r: any) => r.revision === input.revision))
         throw Error('Revision unavailable');
+      const build = await request(
+        path + '/imovie-library?revision=' + input.revision,
+        { method: 'POST' },
+      );
+      if (!build.ok) throw Error('iMovie library could not be queued');
       return {
         ...job,
+        imovie: await build.json(),
+        libraryDownload: `/hev-chat/edits/${input.id}/imovie-library-download?revision=${input.revision}`,
         download: `/hev-chat/edits/${input.id}/imovie-kit?revision=${input.revision}`,
       };
     }

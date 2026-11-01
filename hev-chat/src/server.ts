@@ -185,7 +185,7 @@ const server = createServer(async (req, res) => {
       }
       await requireAdmin(options);
       const match = path.match(
-        /^\/edits\/([a-f0-9-]{36})(\/preview|\/revise|\/publish|\/imovie-kit)?$/,
+        /^\/edits\/([a-f0-9-]{36})(\/preview|\/revise|\/publish|\/imovie-kit|\/imovie-library|\/imovie-library-download)?$/,
       );
       const thread = threads
         .list(identity)
@@ -195,8 +195,11 @@ const server = createServer(async (req, res) => {
         return;
       }
       let kitCandidates: any[] | undefined;
-      if (match[2] === '/imovie-kit') {
-        if (req.method !== 'GET') {
+      if (
+        match[2] === '/imovie-kit' ||
+        (match[2] === '/imovie-library' && req.method === 'POST')
+      ) {
+        if (req.method !== 'GET' && match[2] === '/imovie-kit') {
           res.writeHead(405).end();
           return;
         }
@@ -255,7 +258,7 @@ const server = createServer(async (req, res) => {
           ...(kitCandidates
             ? { body: JSON.stringify({ candidates: kitCandidates }) }
             : {}),
-          ...(req.method === 'POST'
+          ...(req.method === 'POST' && !kitCandidates
             ? { body: JSON.stringify(await readBody()) }
             : {}),
         },
