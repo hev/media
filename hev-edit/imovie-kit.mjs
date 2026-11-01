@@ -20,7 +20,7 @@ export function selectExtras(cutIds, shortlist, hits = []) {
       seen.add(a.id);
       return true;
     })
-    .slice(0, 8);
+    .slice(0, 4);
 }
 export function manifest(cut, job, revision) {
   let time = 0;
@@ -103,6 +103,64 @@ async function trim(source, dest, start, end) {
   start = Math.max(0, start);
   end = Math.min(duration, end);
   if (!(end > start)) throw Error("Source range unavailable");
+  const frames =
+    JSON.parse(
+      (
+        await exec(
+          "ffprobe",
+          [
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-skip_frame",
+            "nokey",
+            "-read_intervals",
+            `${Math.max(0, start - 2)}%${end + 0.1}`,
+            "-show_frames",
+            "-show_entries",
+            "frame=best_effort_timestamp_time",
+            "-of",
+            "json",
+            source,
+          ],
+          { maxBuffer: 4 * 1024 * 1024 },
+        )
+      ).stdout,
+    ).frames ?? [];
+  const aligned = (t) =>
+    frames.some(
+      (f) => Math.abs(Number(f.best_effort_timestamp_time) - t) < 0.001,
+    );
+  if (
+    aligned(start) &&
+    (aligned(end) || Math.abs(end - duration) < 0.001) &&
+    ["h264", "hevc", "prores"].includes(
+      info.streams.find((s) => s.codec_type === "video")?.codec_name,
+    )
+  ) {
+    await exec("ffmpeg", [
+      "-v",
+      "error",
+      "-nostdin",
+      "-ss",
+      String(start),
+      "-i",
+      source,
+      "-t",
+      String(end - start),
+      "-map",
+      "0:v:0",
+      "-map",
+      "0:a?",
+      "-c",
+      "copy",
+      "-movflags",
+      "+faststart",
+      dest,
+    ]);
+    return { start, end, duration: end - start, method: "copy" };
+  }
   // Accurate boundaries require decoding arbitrary GOPs. CRF 16 preserves native
   // geometry, cadence and channel layout, including audio on muted timeline shots.
   await exec(
@@ -137,7 +195,7 @@ async function trim(source, dest, start, end) {
     ],
     { maxBuffer: 1024 * 1024 },
   );
-  return { start, end, duration: end - start };
+  return { start, end, duration: end - start, method: "encode" };
 }
 export async function buildKit({
   root,

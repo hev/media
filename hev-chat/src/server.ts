@@ -1,3 +1,5 @@
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { Shortlists } from './shortlist.js';
 import { Threads, type Turn } from './threads.js';
 import { mkdirSync } from 'node:fs';
@@ -245,6 +247,7 @@ const server = createServer(async (req, res) => {
           (req.url?.includes('?') ? '?' + req.url.split('?')[1] : ''),
         {
           method: kitCandidates ? 'POST' : req.method,
+          signal: abort.signal,
           headers: {
             ...(req.headers.range ? { Range: req.headers.range } : {}),
             'Content-Type': 'application/json',
@@ -272,8 +275,8 @@ const server = createServer(async (req, res) => {
         ),
       );
       if (upstream.body)
-        for await (const chunk of upstream.body as any) res.write(chunk);
-      res.end();
+        await pipeline(Readable.fromWeb(upstream.body as any), res);
+      else res.end();
       return;
     }
     const chunks: Buffer[] = [];
