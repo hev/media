@@ -90,7 +90,7 @@ test('all seven tools call only their SDK read operation with isolated caller op
       'searchPerson',
       'searchPlaces',
       'getSearchSuggestions',
-      'searchAssetStatistics',
+      'getAssetStatistics',
       'getAssetInfo',
     ],
   );
@@ -121,7 +121,6 @@ test('mutation names and extra or mistyped arguments cannot reach the SDK', asyn
       ),
     );
   }
-  assert.deepEqual(summarizeResult('statistics', { images: 3 }), { images: 3 });
   assert.deepEqual(
     summarizeResult('person', [
       { id: 'p', name: 'Adam', thumbnailPath: '/private' },
@@ -144,5 +143,27 @@ test('mutation names and extra or mistyped arguments cannot reach the SDK', asyn
         },
       ],
     },
+  );
+});
+
+test('statistics returns separate photo and video counts to the model with caller identity', async () => {
+  const options = sessionOptions(
+    { authorization: 'Bearer alice' },
+    'http://immich/api',
+  );
+  const counts = { images: 4200, videos: 466, total: 4666 };
+  const api = {
+    getAssetStatistics: async (args: unknown, caller: unknown) => {
+      assert.deepEqual(args, {});
+      assert.equal(caller, options);
+      return counts;
+    },
+  } as any;
+  const result = await runTool('statistics', {}, options, api);
+  assert.deepEqual(result, counts);
+  assert.deepEqual(summarizeResult('statistics', result), counts);
+  assert.match(
+    tools.find((tool) => tool.name === 'statistics')!.description,
+    /images.*videos.*total/,
   );
 });

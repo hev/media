@@ -109,7 +109,7 @@ export const tools = [
   },
   {
     name: 'statistics',
-    description: 'Count visible photos and videos.',
+    description: 'Count the library: returns images (photos), videos, and total separately.',
     input_schema: object,
   },
   {
@@ -181,7 +181,7 @@ export async function runTool(
         options,
       );
     case 'statistics':
-      return api.searchAssetStatistics({ statisticsSearchDto: {} }, options);
+      return api.getAssetStatistics({}, options);
     case 'get_asset':
       return api.getAssetInfo({ id: args.id as string }, options);
     default:
