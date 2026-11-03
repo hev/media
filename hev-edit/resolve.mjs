@@ -96,7 +96,22 @@ export function bridge(cut) {
     width,
     height,
     captions: mergeText(captions),
-    overlays: cut.overlays ?? [],
+    // Workers may describe a burned title twice: editable timed text plus a
+    // Remotion-style composition descriptor, without producing an alpha MOV.
+    // The matching timed text already provides the editable Resolve title.
+    overlays: (cut.overlays ?? []).filter(
+      (layer) =>
+        !(
+          layer.comp === "Title" &&
+          !layer.file &&
+          captions.some(
+            (text) =>
+              text.text === layer.props?.text &&
+              text.start === layer.start &&
+              text.end === layer.end,
+          )
+        ),
+    ),
   };
 }
 export class ResolveQueue {
@@ -177,6 +192,7 @@ export class ResolveQueue {
         id: job.id,
         revision,
         candidates,
+        progress: existing.progress ?? [],
         state: "queued",
         message: "Queued for Resolve",
       };
@@ -217,11 +233,32 @@ export class ResolveQueue {
         });
       } catch (e) {
         item.state = "failed";
-        item.message = `Resolve project could not be built: ${e.message}`;
+        item.error = e.message; // private persisted diagnostic, never a browser message
+        item.message =
+          "Resolve project could not be built. Inspect the private build log.";
       }
       await this.persist(item);
     }
   }
+}
+export function publicResolve(item) {
+  const failure =
+    "Resolve project could not be built. Inspect the private build log.";
+  return {
+    state: item.state,
+    message: item.state === "failed" ? failure : item.message,
+    command: item.command,
+    progress: (item.progress ?? []).map(
+      ({ revision, stage, message, at, agent, model }) => ({
+        revision,
+        stage,
+        message: stage === "failed" ? failure : message,
+        at,
+        agent,
+        model,
+      }),
+    ),
+  };
 }
 export async function buildResolve({
   root,

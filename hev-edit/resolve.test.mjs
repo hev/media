@@ -4,7 +4,12 @@ import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { execFileSync } from "node:child_process";
-import { ResolveQueue, bridge, selectExtras } from "./resolve.mjs";
+import {
+  ResolveQueue,
+  bridge,
+  selectExtras,
+  publicResolve,
+} from "./resolve.mjs";
 const job = {
   id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
   revision: 2,
@@ -75,6 +80,11 @@ test("failed and interrupted builds require an explicit retry", async (t) => {
   await q.request(job, 1);
   await q.drain();
   assert.equal(count, 2);
+  assert.equal(
+    (await q.status(job, 1)).progress.filter((s) => s.stage === "failed")
+      .length,
+    2,
+  );
   await q.persist({ ...job, revision: 2, state: "building" });
   const restored = new ResolveQueue({
     root,
@@ -315,4 +325,42 @@ test("connected overlays include the parent embedded timecode origin", async (t)
     await readFile(path.join(root, "out/timeline.fcpxml"), "utf8"),
     /offset="3601\/1s"/,
   );
+});
+
+test("duplicate Title composition metadata uses editable timed text without requiring a graphic MOV", () => {
+  const title = { start: 0, end: 2.7, text: "Fall bike highlights" };
+  const duplicate = {
+    comp: "Title",
+    start: 0,
+    end: 2.7,
+    props: { text: title.text, position: "top" },
+  };
+  const cut = bridge({
+    clips: [{ src: "a.mp4", in: 0, out: 3 }],
+    titles: [title],
+    overlays: [
+      duplicate,
+      { ...duplicate, file: "real-alpha.mov" },
+      { ...duplicate, comp: "Badge" },
+    ],
+  });
+  assert.equal(cut.captions[0].text, title.text);
+  assert.equal(cut.overlays.length, 2);
+  assert.equal(cut.overlays[0].file, "real-alpha.mov");
+  assert.equal(cut.overlays[1].comp, "Badge");
+});
+test("Resolve failure projection never exposes private errors or paths, including old persisted failures", () => {
+  const failure = {
+    state: "failed",
+    message: "ENOENT /Users/private/graphic.mov",
+    error: "/secret",
+    progress: [
+      { stage: "failed", message: "/Users/private/graphic.mov", at: 1 },
+    ],
+  };
+  const result = publicResolve(failure);
+  assert.equal(result.state, "failed");
+  assert.ok(!JSON.stringify(result).includes("/Users/"));
+  assert.ok(!JSON.stringify(result).includes("/secret"));
+  assert.match(result.progress[0].message, /private build log/);
 });
