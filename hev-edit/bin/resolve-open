@@ -7,12 +7,15 @@ case "$job" in *[!a-f0-9-]*|'') usage;; esac
 [ "${#job}" -eq 36 ] || usage
 host=${RESOLVE_HOST:-mini}
 case "$host" in *[!a-zA-Z0-9._-]*|''|-*) usage;; esac
+read_remote() {
+ if [ "$host" = localhost ]; then cat "/Users/hev/$1"; else ssh "$host" "cat $1"; fi
+}
 revision=${2:-}
 if [ -z "$revision" ]; then
- revision=$(ssh "$host" "cat dispatch/edits/$job/job.json" | sed -n 's/.*"revision"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' | head -n 1)
+ revision=$(read_remote "dispatch/edits/$job/job.json" | sed -n 's/.*"revision"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' | head -n 1)
 fi
 case "$revision" in *[!0-9]*|''|0|0*) usage;; esac
-metadata=$(ssh "$host" "cat dispatch/edits/$job/resolve/state-r$revision.json")
+metadata=$(read_remote "dispatch/edits/$job/resolve/state-r$revision.json")
 case "$metadata" in *'"state":"ready"'*) ;; *) echo 'Resolve project is not ready on the mini.' >&2; exit 1;; esac
 remote=$(printf '%s' "$metadata" | sed -n 's/.*"zip":"\([^"]*\)".*/\1/p')
 case "$remote" in /Users/hev/dispatch/edits/"$job"/resolve/*.zip) ;; *) echo 'Invalid project path.' >&2; exit 1;; esac
@@ -23,7 +26,7 @@ if [ ! -d "$folder" ]; then
  mkdir -p "$HOME/Movies/hev-video"
  archive=$HOME/Movies/hev-video/.$name.zip
  trap 'rm -f "$archive.download"' 0 HUP INT TERM
- scp "$host:$remote" "$archive.download"
+ if [ "$host" = localhost ]; then scp "$remote" "$archive.download"; else scp "$host:$remote" "$archive.download"; fi
  mv "$archive.download" "$archive"
  unzip -q "$archive" -d "$HOME/Movies/hev-video"
  rm "$archive"
