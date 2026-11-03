@@ -82,23 +82,29 @@ export function relevantAssets(assets: any[]) {
 
 // Deterministic subject extraction; no extra inference call or private metadata.
 export function videoTitle(value: string) {
-  const subject = value
+  let subject = value
     .split(/[.!?\n]/, 1)[0]
     .replace(/^\/(?:search|edit)\s*/i, '')
-    .replace(
-      /^(?:search(?: the library)?(?: for)?|find|show me|make|create|a highlight reel of)\s+/i,
-      '',
-    )
-    .replace(/\b(?:videos?|photos?|footage|search|thread|please)\b/gi, '')
-    .replace(/\b(?:a|an|the)\s+(?:edit|reel)\b/gi, '')
+    .trim();
+  // Strip stacked conversational prefixes: "could you please help me find...".
+  const prefix =
+    /^(?:(?:let['’]?s|can you|could you|would you|will you|i want(?: to)?|i(?:['’]d| would) like(?: to)?|please|help me(?: to)?)\s+|(?:make|find|create|search(?: the library)?(?: for)?|show(?: me)?)\s+|(?:a )?highlight reel of\s+|(?:a|an|the)\s+)/i;
+  while (prefix.test(subject)) subject = subject.replace(prefix, '').trim();
+  subject = subject
+    .replace(/\b(?:videos?|photos?|footage|search|thread|edit|reel)\b/gi, '')
+    .replace(/\bhighlight\b/gi, 'highlights')
     .replace(/\s+/g, ' ')
-    .replace(/[.!?]+$/, '')
     .trim();
   if (!subject) return 'My highlights';
-  const title = /\b(highlights|reel|moments)\b/i.test(subject)
-    ? subject
-    : subject + ' highlights';
-  return (title[0].toUpperCase() + title.slice(1)).slice(0, 80);
+  if (!/\b(highlights|moments)\b/i.test(subject)) {
+    const temporal = subject.match(
+      /^(.*?)\s+((?:from|in|during)\s+(?:last|this|the|\d{4})\b.*)$/i,
+    );
+    subject = temporal
+      ? `${temporal[1]} highlights ${temporal[2]}`
+      : subject + ' highlights';
+  }
+  return (subject[0].toUpperCase() + subject.slice(1)).slice(0, 80);
 }
 export function pendingConfirmation(
   thread: { setup?: EditSetup; setupAfter?: number; messages: unknown[] },
