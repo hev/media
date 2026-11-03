@@ -201,3 +201,10 @@ export async function publishRevision(job, number, save, draft) {
   await save(job);
   return revision;
 }
+
+export function revisionSettings(settings) {
+  const keys = ["aspectRatio", "length", "captions", "titles", "music"];
+  if (!settings || typeof settings !== "object" || Array.isArray(settings) ||
+      Object.keys(settings).some(k => !keys.includes(k))) throw Error("Invalid revision settings");
+  return Object.fromEntries(Object.entries(settings));
+}

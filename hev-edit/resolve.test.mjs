@@ -365,7 +365,7 @@ test("Resolve failure projection never exposes private errors or paths, includin
   assert.match(result.progress[0].message, /private build log/);
 });
 
-test("native project switching preserves empty unnamed projects and refuses unnamed content before saving", () => {
+test("native project switching discards empty unnamed projects and refuses unnamed content before saving", () => {
   const code = `
 import sys
 sys.path.insert(0, sys.argv[1])
@@ -391,7 +391,7 @@ class Manager:
         self.project.calls.append('save'); return True
     def CloseProject(self, p): p.calls.append('close'); return True
 p=Project('New Project'); preserve_current(Manager(p, []),p,'job')
-assert p.name == 'job-empty-before-build' and p.calls == ['rename','save','close']
+assert p.name == 'New Project' and p.calls == ['close']
 p=Project('New Project',['clip'])
 try: preserve_current(Manager(p,[]),p,'job'); raise AssertionError('must refuse')
 except RuntimeError: pass
@@ -399,9 +399,18 @@ assert p.calls == []
 p=Project('Existing',['clip']); preserve_current(Manager(p,['Existing']),p,'job')
 assert p.name == 'Existing' and p.calls == ['save','close']
 p=Project('New Project')
-try: preserve_current(Manager(p,['job-empty-before-build']),p,'job'); raise AssertionError('collision')
-except RuntimeError: pass
-assert p.calls == []
+preserve_current(Manager(p,['job-empty-before-build']),p,'job')
+assert p.calls == ['close']
 `;
   execFileSync("python3", ["-c", code, new URL(".", import.meta.url).pathname]);
+});
+
+test("successful renders automatically queue Resolve and Resolve failure leaves edit rendered", async () => {
+  const { prebuildResolve } = await import('./resolve.mjs');
+  const job = { id: 'fixture', revision: 2, state: 'rendered' };
+  const calls = [];
+  await prebuildResolve({ request: async (...args) => calls.push(args) }, job);
+  assert.deepEqual(calls, [[job, 2]]);
+  await prebuildResolve({ request: async () => { throw Error('Resolve unavailable'); } }, job);
+  assert.equal(job.state, 'rendered');
 });

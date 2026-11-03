@@ -3,6 +3,7 @@ import {
   buildResolve,
   downloadResolve,
   publicResolve,
+  prebuildResolve,
 } from "./resolve.mjs";
 import { createServer } from "node:http";
 import {
@@ -22,6 +23,7 @@ import { promisify } from "node:util";
 import path from "node:path";
 import {
   authorized,
+  revisionSettings,
   originalPath,
   validate,
   Queue,
@@ -256,6 +258,8 @@ const queue = new Queue(async (job, update) => {
     "Ready to review locally. Publish creates a Buffer draft.",
   );
   await save(job);
+  // Resolve has its own persisted failure state; never fail a finished edit.
+  await prebuildResolve(libraries, job);
 }, save);
 for (const id of await readdir(root)) {
   if (!/^[a-f0-9-]{36}$/.test(id)) continue;
@@ -273,7 +277,6 @@ for (const id of await readdir(root)) {
   }
   queue.jobs.set(id, job);
 }
-void queue.drain();
 async function resolveExtra(job, asset) {
   const source = await originalPath(asset.originalPath, external);
   if (!process.env.HEV_EDIT_SOURCE_CONTAINER) return source;
@@ -324,6 +327,7 @@ const libraries = new ResolveQueue({
     }),
 });
 await libraries.restore(queue.jobs.values());
+void queue.drain();
 createServer(async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   if (!authorized(req.headers.authorization, process.env.HEV_EDIT_SECRET)) {
@@ -536,6 +540,11 @@ createServer(async (req, res) => {
               },
             ]
           : [];
+        if (input.settings !== undefined) {
+          const settings = revisionSettings(input.settings);
+          validate({ ...job.input, ...settings });
+          Object.assign(job.input, settings);
+        }
         job.input.brief += "\nRevision: " + input.change;
         job.revision++;
         job.state = "queued";

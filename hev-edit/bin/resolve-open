@@ -4,7 +4,7 @@ usage() { echo 'Usage: resolve-open <job-id> [revision]' >&2; exit 2; }
 [ "$#" -ge 1 ] && [ "$#" -le 2 ] || usage
 job=$1
 case "$job" in *[!a-f0-9-]*|'') usage;; esac
-[ "${#job}" -eq 36 ] || usage
+printf '%s\n' "$job" | /usr/bin/grep -Eq '^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$' || usage
 host=${RESOLVE_HOST:-mini}
 case "$host" in *[!a-zA-Z0-9._-]*|''|-*) usage;; esac
 read_remote() {
@@ -31,5 +31,11 @@ if [ ! -d "$folder" ]; then
  unzip -q "$archive" -d "$HOME/Movies/hev-video"
  rm "$archive"
 fi
-open "$folder"
+project="$folder/$name.drp"
+if [ -f "$project" ] && open -a "${RESOLVE_APP:-DaVinci Resolve}" "$project"; then
+ printf 'Asked Resolve to open: %s\n' "$project"
+else
+ open "$folder"
+ printf 'Automatic project open unavailable. Import the .drp from this folder.\n'
+fi
 printf 'In Resolve: File > Import Project > %s/%s.drp (or File > Import > Timeline > timeline.fcpxml)\n' "$folder" "$name"
