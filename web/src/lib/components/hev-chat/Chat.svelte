@@ -201,8 +201,9 @@
     await refreshEdits();
   }
   function pauseOthers(event: Event) {
+    const active = event.currentTarget;
     document.querySelectorAll('video').forEach((video) => {
-      if (video !== event.currentTarget) video.pause();
+      if (video !== active) video.pause();
     });
   }
   async function revise(edit: Edit) {
@@ -854,7 +855,7 @@
             <legend>Edit settings</legend>
             <label
               >Aspect ratio <select aria-label="Sidebar aspect ratio" bind:value={settings.aspectRatio}>
-                {#each ['9:16', '1:1', '4:5', '16:9'] as ratio}<option>{ratio}</option>{/each}
+                {#each ['9:16', '1:1', '4:5', '16:9'] as ratio (ratio)}<option>{ratio}</option>{/each}
               </select></label
             >
             <label
