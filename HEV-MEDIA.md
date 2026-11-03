@@ -54,6 +54,9 @@ Configure video transcoding through Immich's administrator settings or
 `PUT /api/system-config`. The playback policy is `ffmpeg.transcode: required`
 with `ffmpeg.acceptedVideoCodecs: [h264, hevc]`. These are runtime settings;
 this web-only fork does not pin or override the server's configuration.
+The web service worker passes video and byte-range requests directly to the
+network, so separate ranges of a large original cannot reuse a response cached
+by URL for thumbnail loading.
 
 Required-only conversion ignores the target resolution for compatible originals,
 so accepted 4K HEVC footage can play without a 720p H.264 copy. Keep the audio

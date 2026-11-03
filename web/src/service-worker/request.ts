@@ -17,6 +17,13 @@ const CANCELATION_MESSAGE = 'Request canceled by application';
 const CLEANUP_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 export const handleFetch = async (request: URL | Request): Promise<Response> => {
+  // Media readers make independent byte-range requests to the same URL. Reusing
+  // a response by URL can return the wrong range (or a full file) and stall
+  // playback of large originals. Let the browser manage these streams directly.
+  if (request instanceof Request && (request.destination === 'video' || request.headers.has('range'))) {
+    return fetch(request);
+  }
+
   const requestKey = getRequestKey(request);
   const existing = pendingRequests.get(requestKey);
 
