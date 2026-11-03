@@ -140,3 +140,32 @@ test('viewing legacy edits with no progress does not mutate the thread', () => {
   assert.equal(JSON.stringify(db.get('owner', thread.id)), before);
   db.db.close();
 });
+
+test('video titles strip Adam-style conversational lead-ins and retain temporal context', async () => {
+  const { videoTitle } = await import('./ux.js');
+  for (const [prompt, title] of [
+    [
+      'Lets make a family biking video highlight reel. search for videos',
+      'Family biking highlights',
+    ],
+    [
+      "Let's make a family biking video highlight reel",
+      'Family biking highlights',
+    ],
+    [
+      'Can you find skiing videos from last winter?',
+      'Skiing highlights from last winter',
+    ],
+    ['I want a fall bike edit', 'Fall bike highlights'],
+    ["I'd like to create a fall bike reel", 'Fall bike highlights'],
+    [
+      'Could you please help me find family biking videos',
+      'Family biking highlights',
+    ],
+    [
+      'Please make a highlight reel of family skiing',
+      'Family skiing highlights',
+    ],
+  ])
+    assert.equal(videoTitle(prompt), title);
+});
