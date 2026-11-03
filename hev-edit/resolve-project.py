@@ -24,11 +24,11 @@ if not app:
     sys.exit(3)
 pm = app.GetProjectManager()
 current = pm.GetCurrentProject()
-if current:
-    if current.GetName() != name and not pm.SaveProject():
-        sys.exit('Could not save current Resolve project; refusing to switch')
-    if not pm.CloseProject(current):
-        sys.exit('Could not close current project safely')
+from resolve_current import preserve_current
+try:
+    preserve_current(pm, current, name)
+except RuntimeError as error:
+    sys.exit(str(error))
 pm.DeleteProject(name)
 project = pm.CreateProject(name)
 if not project:
