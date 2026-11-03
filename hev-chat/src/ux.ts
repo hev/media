@@ -94,7 +94,8 @@ export function videoTitle(value: string) {
     .replace(/\b(?:videos?|photos?|footage|search|thread|edit|reel)\b/gi, '')
     .replace(/\bhighlight\b/gi, 'highlights')
     .replace(/\s+/g, ' ')
-    .trim();
+    .trim()
+    .replace(/^of (?:the )?/i, '');
   if (!subject) return 'My highlights';
   if (!/\b(highlights|moments)\b/i.test(subject)) {
     const temporal = subject.match(
