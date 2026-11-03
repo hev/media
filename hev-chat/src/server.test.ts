@@ -12,6 +12,18 @@ const listen = (s: Server) =>
 test('HTTP threads authenticate and isolate owners for reads, changes, deletion and jobs', async () => {
   const upstream = createServer((req, res) => {
     res.setHeader('Content-Type', 'application/json');
+    if (req.url?.startsWith('/assets/')) {
+      res.end(
+        JSON.stringify({
+          id: req.url.split('/')[2],
+          ownerId: req.url.includes('bbbbbbbb') ? 'B' : 'A',
+          type: 'IMAGE',
+          originalFileName: 'user-added.jpg',
+        }),
+      );
+      return;
+    }
+
     res.end(
       JSON.stringify({
         id: req.headers.authorization?.slice(7),
@@ -103,6 +115,42 @@ test('HTTP threads authenticate and isolate owners for reads, changes, deletion 
       ).status,
       400,
     );
+    const own = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      foreign = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+    assert.equal(
+      (
+        await request('B', '/threads/' + thread.id + '/assets', 'POST', {
+          ids: [own],
+        })
+      ).status,
+      404,
+    );
+    assert.equal(
+      (
+        await request('A', '/threads/' + thread.id + '/assets', 'POST', {
+          ids: [own, foreign],
+        })
+      ).status,
+      403,
+    );
+    assert.equal(
+      ((await (await request('A', '/threads/' + thread.id)).json()) as any)
+        .messages.length,
+      0,
+    );
+    assert.equal(
+      (
+        await request('A', '/threads/' + thread.id + '/assets', 'POST', {
+          ids: [own],
+        })
+      ).status,
+      200,
+    );
+    const added = (await (
+      await request('A', '/threads/' + thread.id)
+    ).json()) as any;
+    assert.equal(added.messages[0].content, 'Added from library');
+    assert.equal(added.messages[0].assets[0].id, own);
     await request('A', '/threads/' + thread.id, 'DELETE');
     assert.equal((await request('A', '/threads/' + thread.id)).status, 404);
   } finally {
@@ -120,9 +168,12 @@ test('Resolve endpoint checks session, admin and owner before proxying ZIP bytes
   const db = new Threads(join(dir, 'threads.sqlite'));
   const thread = db.create('owner');
   db.claim('owner', thread, id);
+  thread.messages.push({role:'user',content:'Added from library',assets:[{id,type:'VIDEO'}]});
+  db.save('owner',thread);
   db.db.close();
   const upstream = createServer((req, res) => {
     res.setHeader('Content-Type', 'application/json');
+    if (req.url?.startsWith('/assets/')) { res.end(JSON.stringify({id,type:'VIDEO',originalPath:'/external/test.mov'})); return; }
     res.end(
       JSON.stringify({
         id: req.headers.authorization?.slice(7),
@@ -131,8 +182,14 @@ test('Resolve endpoint checks session, admin and owner before proxying ZIP bytes
     );
   });
   let builds = 0;
-  const launcher = createServer((req, res) => {
+  let starts = 0;
+  const launcher = createServer(async (req, res) => {
     assert.equal(req.headers.authorization, 'Bearer launcher-secret');
+    if (req.url === '/jobs' && req.method === 'POST') {
+      let body = ''; for await (const chunk of req) body += chunk;
+      const input = JSON.parse(body); assert.equal(input.aspectRatio,'1:1'); assert.equal(input.length,12); assert.equal(input.captions,false); assert.equal(input.ownerId,'owner'); assert.equal(input.threadId,thread.id); starts++;
+      res.end(JSON.stringify({id,state:'queued'})); return;
+    }
     if (req.url?.includes('/resolve-download')) {
       builds++;
       res
@@ -224,6 +281,18 @@ test('Resolve endpoint checks session, admin and owner before proxying ZIP bytes
     assert.equal(await archive.text(), 'LIBRARY-ZIP');
     assert.match(archive.headers.get('content-disposition')!, /resolve.zip/);
     assert.equal(builds, 3);
+    const request = (user: string, path: string, body: object) => fetch(url+path,{method:'POST',headers:{Authorization:'Bearer '+user,'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const setup = {assetIds:[id],aspectRatio:'1:1',length:12,captions:false};
+    assert.equal((await request('other-admin','/threads/'+thread.id+'/setup',setup)).status,404);
+    assert.equal((await request('owner','/threads/'+thread.id+'/setup',{...setup,assetIds:['foreign']})).status,400);
+    assert.equal((await request('owner','/threads/'+thread.id+'/setup',setup)).status,200);
+    const saved = await (await fetch(url+'/threads/'+thread.id,{headers:{Authorization:'Bearer owner'}})).json();
+    assert.equal(saved.setup.aspectRatio,'1:1');
+    const confirmed = await request('owner','/chat',{threadId:thread.id,messages:[{role:'user',content:'give it a go'}]});
+    const events = (await confirmed.text()).trim().split('\n').map(line=>JSON.parse(line));
+    assert.equal(events[0].type,'status'); assert.ok(events.some(e=>e.type==='edit')); assert.equal(events.at(-1).type,'done'); assert.equal(starts,1);
+    const after = await (await fetch(url+'/threads/'+thread.id,{headers:{Authorization:'Bearer owner'}})).json(); assert.equal(after.setup,undefined);
+
   } finally {
     child.kill();
     await closed;

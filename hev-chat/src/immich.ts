@@ -1,3 +1,4 @@
+import { rerank } from './relevance.js';
 import * as sdk from '@immich/sdk';
 
 export class SessionError extends Error {}
@@ -54,7 +55,10 @@ export const tools = [
     description: 'Find photos using a natural-language visual query.',
     input_schema: {
       ...object,
-      properties: { query: { type: 'string' } },
+      properties: {
+        query: { type: 'string' },
+        type: { type: 'string', enum: ['IMAGE', 'VIDEO'] },
+      },
       required: ['query'],
     },
   },
@@ -109,7 +113,8 @@ export const tools = [
   },
   {
     name: 'statistics',
-    description: 'Count the library: returns images (photos), videos, and total separately.',
+    description:
+      'Count the library: returns images (photos), videos, and total separately.',
     input_schema: object,
   },
   {
@@ -128,6 +133,8 @@ export async function runTool(
   input: unknown,
   options: ReturnType<typeof sessionOptions>,
   api = sdk,
+  score = rerank,
+  progress: (message: string) => void = () => {},
 ) {
   const tool = tools.find((tool) => tool.name === name);
   if (!tool || !input || typeof input !== 'object' || Array.isArray(input))
@@ -158,11 +165,33 @@ export async function runTool(
       throw new Error('Missing tool argument');
   }
   switch (name) {
-    case 'smart':
-      return api.searchSmart(
-        { smartSearchDto: { query: args.query as string, size: 40 } },
+    case 'smart': {
+      const query = args.query as string;
+      const type =
+        args.type ??
+        (/\b(videos?|clips?|footage)\b/i.test(query)
+          ? 'VIDEO'
+          : /\b(photos?|pictures?)\b/i.test(query)
+            ? 'IMAGE'
+            : undefined);
+      const result = await api.searchSmart(
+        {
+          smartSearchDto: {
+            query,
+            size: 48,
+            ...(type ? { type: type as sdk.AssetTypeEnum } : {}),
+          },
+        },
         options,
       );
+      // Test adapters can provide scored results; production computes scores locally.
+      const items = result.assets.items.filter((a) => !type || a.type === type);
+      progress(
+        `Checking relevance of ${items.length} ${type === 'VIDEO' ? 'clips' : 'photos and videos'}…`,
+      );
+      const assets = await score(query, items, options);
+      return { ...result, assets: { ...result.assets, items: assets } };
+    }
     case 'metadata':
       return api.searchAssets(
         { metadataSearchDto: { ...args, size: 40 } },

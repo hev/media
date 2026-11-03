@@ -107,3 +107,24 @@ An ambiguous publish failure stays claimed for ledger inspection before recovery
 ## Resolve handoff
 
 Use **Open in Resolve** on a rendered revision. The card tracks the queued/building/ready/failed state. Copy `resolve-open JOB REVISION` on the laptop (install `hev-edit/bin/resolve-open`), or use **Download for Resolve**. Unzip into `~/Movies/hev-video/`, then File → Import Project → the `.drp`. Import `captions.srt` as subtitles; titles and captions remain editable text. The FCPXML is a timeline fallback. Original media and up to four unused theme clips travel with the project; extras are in an Extras bin. No publishing occurs.
+
+## Chat search and edit setup
+
+Visual search re-scores authenticated thumbnails with the local Immich ML service
+(`HEV_ML_URL`, default internal `/predict`; `HEV_CLIP_MODEL`, default
+`ViT-B-32__openai`, must match the library). No thumbnails leave the private
+network. Results must be within 0.025 cosine distance of the best result and
+below 0.78; a large score gap ends the result set. At most four assets per day
+and 24 per response remain, with 12 initially visible. These are visual matches,
+not a guarantee that every subject is present. If local scoring fails, chat
+reports a search failure rather than displaying an unfiltered batch.
+
+Use **Add to chat** in the asset viewer or timeline selection bar to add up to
+20 owned assets to a recent thread or a new one. `/search`, `/edit`, `/revise`,
+`/resolve`, and `/publish` wrap the existing actions. `/edit` opens the persisted
+setup card; its shortlist and settings are the confirmation. Start edit or
+“give it a go” starts the chosen edit. The worker checks both cut metadata and
+actual output dimensions; Resolve reads those same cut dimensions.
+
+Rendering and revision previews stay local. Only the explicit Publish action
+uploads the selected revision and creates a Buffer draft for human review.

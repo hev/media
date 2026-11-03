@@ -24,6 +24,10 @@ export const editTools = [
         brief: { type: 'string' },
         length: { type: 'number', description: 'Seconds, 1–60, default 30' },
         caption: { type: 'string' },
+        aspectRatio: { type: 'string', enum: ['9:16', '1:1', '16:9', '4:5'] },
+        captions: { type: 'boolean' },
+        titles: { type: 'string' },
+        music: { type: 'string' },
       },
       required: ['assetIds', 'brief', 'caption'],
     },
@@ -88,6 +92,13 @@ export async function runEditTool(
         'Show the shortlist and ask the user to confirm before starting.',
       );
     if (
+      !['9:16', '1:1', '16:9', '4:5'].includes(input.aspectRatio ?? '9:16') ||
+      (input.captions !== undefined && typeof input.captions !== 'boolean') ||
+      ['titles', 'music'].some(
+        (k) =>
+          input[k] !== undefined &&
+          (typeof input[k] !== 'string' || input[k].length > 2000),
+      ) ||
       !Array.isArray(input.assetIds) ||
       input.assetIds.length < 1 ||
       input.assetIds.length > 20 ||
@@ -108,10 +119,12 @@ export async function runEditTool(
     for (const id of input.assetIds) {
       const asset = await api.getAssetInfo({ id }, options);
       if (
-        asset.type !== 'VIDEO' ||
+        !['VIDEO', 'IMAGE'].includes(asset.type) ||
         !asset.originalPath?.startsWith('/external/')
       )
-        throw Error('Select original videos in the external library.');
+        throw Error(
+          'Select original photos or videos in the external library.',
+        );
       assets.push({ id: asset.id, originalPath: asset.originalPath });
     }
     body = {
@@ -119,6 +132,10 @@ export async function runEditTool(
       brief: input.brief,
       length: input.length ?? 30,
       caption: input.caption,
+      aspectRatio: input.aspectRatio ?? '9:16',
+      captions: input.captions ?? true,
+      titles: input.titles ?? '',
+      music: input.music ?? '',
     };
   } else {
     if (name === 'edit_status' && input.id === undefined) {

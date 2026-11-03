@@ -1,3 +1,4 @@
+import type { EditSetup } from './ux.js';
 import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
 export type Turn = {
@@ -12,6 +13,7 @@ export type Thread = {
   messages: Turn[];
   selected: any[];
   smartQuery?: string;
+  setup?: EditSetup;
   jobs: string[];
   updatedAt: number;
 };

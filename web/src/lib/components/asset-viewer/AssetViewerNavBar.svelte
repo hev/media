@@ -1,4 +1,5 @@
 <script lang="ts">
+  import AddToChat from '$lib/components/hev-chat/AddToChat.svelte';
   import ActionMenuItem from '$lib/components/ActionMenuItem.svelte';
   import type { OnAction, PreAction } from '$lib/components/asset-viewer/actions/action';
   import ArchiveAction from '$lib/components/asset-viewer/actions/ArchiveAction.svelte';
@@ -103,6 +104,7 @@
         {/snippet}
       </Tooltip>
     {/if}
+    {#if !sharedLink && isOwner}<AddToChat ids={[asset.id]} />{/if}
     <ActionButton action={Cast} />
     <ActionButton action={Actions.Share} />
     <ActionButton action={Actions.Offline} />
