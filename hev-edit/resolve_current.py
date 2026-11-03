@@ -8,9 +8,11 @@ def preserve_current(pm, current, job_name):
         empty = current.GetTimelineCount() == 0 and not folder.GetClipList() and not folder.GetSubFolderList()
         if not empty:
             raise RuntimeError('Save the current unnamed Resolve project before building a handoff')
-        preserved = job_name + '-empty-before-build'
-        if preserved in saved or not current.SetName(preserved):
-            raise RuntimeError('Could not preserve the empty unnamed Resolve project')
+        # An unnamed empty project has no work to preserve. Close without save;
+        # saving first would create a naming modal or litter the library.
+        if not pm.CloseProject(current):
+            raise RuntimeError('Could not close empty unnamed project safely')
+        return
     if not pm.SaveProject():
         raise RuntimeError('Could not save current Resolve project; refusing to switch')
     if not pm.CloseProject(current):

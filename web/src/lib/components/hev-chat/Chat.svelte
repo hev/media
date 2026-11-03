@@ -3,6 +3,7 @@
   import WorkerProgress, { type Progress } from './WorkerProgress.svelte';
   import {
     mdiPencil,
+    mdiMovieEditOutline,
     mdiDelete,
     mdiClose,
     mdiMenu,
@@ -14,7 +15,7 @@
   import Portal from '$lib/elements/Portal.svelte';
   import { assetViewerManager } from '$lib/managers/asset-viewer-manager.svelte';
   import { authManager } from '$lib/managers/auth-manager.svelte';
-  import { getAssetMediaUrl } from '$lib/utils';
+  import { getAssetMediaUrl, getAssetPlaybackUrl } from '$lib/utils';
   import { getAssetInfo } from '@immich/sdk';
   import { onDestroy, onMount, tick } from 'svelte';
   import { page } from '$app/state';
@@ -176,6 +177,33 @@
     if (!current) return;
     current = await api('/threads/' + current.id + '/selection', 'POST', { ids: selected });
     await openSetup();
+  }
+  let drafts = $state<Record<string, Setup>>({});
+  function settingsFor(edit: Edit): Setup {
+    return (drafts[edit.id] ??= {
+      aspectRatio: '9:16',
+      length: 30,
+      captions: true,
+      titles: '',
+      music: '',
+      brief: '',
+      assetIds: [],
+      ...edit.setup,
+    });
+  }
+  async function reviseSettings(edit: Edit) {
+    const { aspectRatio, length, captions, titles, music, brief } = settingsFor(edit);
+    await api('/edits/' + edit.id + '/revise', 'POST', {
+      change: brief.trim() || 'Apply the selected edit settings',
+      settings: { aspectRatio, length, captions, titles, music },
+    });
+    delete drafts[edit.id];
+    await refreshEdits();
+  }
+  function pauseOthers(event: Event) {
+    document.querySelectorAll('video').forEach((video) => {
+      if (video !== event.currentTarget) video.pause();
+    });
   }
   async function revise(edit: Edit) {
     const change = prompt('What should change?');
@@ -447,10 +475,10 @@
       <button type="button" class="mb-4 rounded-xl border p-3" onclick={newThread} disabled={busy}>New thread</button>
       {#each threads as thread (thread.id)}
         <div
-          class={`mb-3 rounded-xl p-2 ${current?.id === thread.id ? 'bg-immich-gray dark:bg-immich-dark-gray' : ''}`}
+          class={`thread-row mb-3 rounded-xl p-2 ${current?.id === thread.id ? 'bg-immich-gray dark:bg-immich-dark-gray' : ''}`}
         >
           <a
-            class="block wrap-break-word underline"
+            class="thread-title underline"
             href={`/chat/${thread.id}`}
             onclick={(e) => {
               if (busy) e.preventDefault();
@@ -602,12 +630,22 @@
                         value={asset.id}
                         bind:group={selected}
                         aria-label={`Select ${asset.originalFileName ?? 'asset'}`}
-                      /><img
-                        class="aspect-square w-full rounded-lg object-cover"
-                        src={getAssetMediaUrl({ id: asset.id })}
-                        alt={asset.originalFileName ?? 'Search result'}
-                        loading="lazy"
-                      /></label
+                      />{#if asset.type === 'VIDEO'}<video
+                          controls
+                          muted
+                          playsinline
+                          preload="none"
+                          onplay={pauseOthers}
+                          class="aspect-square w-full rounded-lg object-contain"
+                          poster={getAssetMediaUrl({ id: asset.id })}
+                          src={getAssetPlaybackUrl({ id: asset.id })}><track kind="captions" /></video
+                        >
+                      {:else}<img
+                          class="aspect-square w-full rounded-lg object-cover"
+                          src={getAssetMediaUrl({ id: asset.id })}
+                          alt={asset.originalFileName ?? 'Search result'}
+                          loading="lazy"
+                        />{/if}</label
                     ><button
                       type="button"
                       class="icon-action"
@@ -657,6 +695,9 @@
                     >{/if}
                   {#if revision?.preview || edit.preview}<video
                       controls
+                      muted
+                      playsinline
+                      onplay={pauseOthers}
                       preload="metadata"
                       class="mt-2 max-h-80 rounded-lg"
                       src={revision?.preview ?? edit.preview}><track kind="captions" /></video
@@ -667,7 +708,7 @@
                     title="Revise edit"
                     aria-label="Revise edit"
                     disabled={busy || ['queued', 'editing'].includes(edit.state)}
-                    onclick={() => revise(edit)}><svg viewBox="0 0 24 24"><path d={mdiPencil} /></svg></button
+                    onclick={() => revise(edit)}><svg viewBox="0 0 24 24"><path d={mdiMovieEditOutline} /></svg></button
                   >
                   {#if revision || edit.preview}
                     {@const libraryKey = edit.id + ':' + (revisions[edit.id] ?? edit.revision)}
@@ -677,7 +718,8 @@
                         class="underline"
                         disabled={libraryPending[libraryKey] ||
                           ['queued', 'waiting', 'building', 'ready'].includes(library?.state ?? '')}
-                        onclick={() => resolve(edit)}>Open in Resolve</button
+                        onclick={() => resolve(edit)}
+                        >{library?.state === 'failed' ? 'Retry Resolve build' : 'Build Resolve project'}</button
                       >{/if}
                     {#if library}
                       <p role="status" class="mt-2">{library.message}</p>
@@ -685,12 +727,17 @@
                       {#if library.state === 'ready' && library.command}
                         <a
                           class="text-on-primary mt-2 inline-block rounded-lg bg-primary p-2"
+                          href={`hevmedia://resolve/${edit.id}/${revisions[edit.id] ?? edit.revision}`}
+                          >Open in Resolve</a
+                        >
+                        <a
+                          class="ml-2 underline"
                           href={`/hev-chat/edits/${edit.id}/resolve-download?revision=${revisions[edit.id] ?? edit.revision}`}
-                          download>Download for Resolve</a
+                          download>Download ZIP</a
                         >
                         <p class="mt-2">
-                          Use the laptop command, or unzip into ~/Movies/hev-video. In Resolve: File → Import Project →
-                          .drp. Import captions.srt as subtitles.
+                          Files land in ~/Movies/hev-video/&lt;project-name&gt;/. Install the laptop handler once to
+                          open directly. Import captions.srt as subtitles.
                         </p>
                         <details class="mt-2">
                           <summary>Copy laptop command</summary>
@@ -784,14 +831,18 @@
           Select moments from the conversation, then choose Edit setup to begin.
         </p>{/if}
       {#each edits as edit (edit.id)}
-        {@const settings = edit.setup}
+        {@const settings = settingsFor(edit)}
         {@const clips = edit.assets ?? []}
         {@const chosen = edit.revisions?.find((r) => r.revision === (revisions[edit.id] ?? edit.revision))}
         {@const timeline = chosen?.timeline ?? edit.timeline}
         {@const duration = chosen?.duration ?? edit.duration}
         {@const library = libraryBuilds[edit.id + ':' + (revisions[edit.id] ?? edit.revision)]}
         <section class="mb-5" aria-label="Edit summary">
-          <p class="font-semibold">{clips.length} clips and photos · revision {edit.revision}</p>
+          <p class="font-semibold">
+            {clips.filter((c) => messages.flatMap((m) => m.assets).find((a) => a.id === c.id)?.type !== 'IMAGE').length} clips
+            · {clips.filter((c) => messages.flatMap((m) => m.assets).find((a) => a.id === c.id)?.type === 'IMAGE')
+              .length} photos · revision {edit.revision}
+          </p>
           <p class="my-2 text-sm">
             {duration === undefined ? '' : `${duration.toFixed(1)}s total / `}{edit.state} · {settings?.aspectRatio ??
               '9:16'} · target {settings?.length ?? 30}s
@@ -799,6 +850,35 @@
           <p class="text-sm">
             Captions {settings?.captions ? 'on' : 'off'}{settings?.titles ? ` · ${settings.titles}` : ''}
           </p>
+          <fieldset class="my-3 grid gap-2" disabled={['queued', 'editing'].includes(edit.state)}>
+            <legend>Edit settings</legend>
+            <label
+              >Aspect ratio <select aria-label="Sidebar aspect ratio" bind:value={settings.aspectRatio}>
+                {#each ['9:16', '1:1', '4:5', '16:9'] as ratio}<option>{ratio}</option>{/each}
+              </select></label
+            >
+            <label
+              >Target length (seconds) <input
+                aria-label="Sidebar target length"
+                type="number"
+                min="1"
+                max="60"
+                bind:value={settings.length}
+              /></label
+            >
+            <label><input type="checkbox" bind:checked={settings.captions} /> Captions</label>
+            <label>Title text <input aria-label="Sidebar title text" bind:value={settings.titles} /></label>
+            <label
+              >Licensed music file only <input aria-label="Sidebar licensed music" bind:value={settings.music} /></label
+            >
+            <label
+              >Revision notes / pacing <textarea aria-label="Sidebar revision notes" bind:value={settings.brief}
+              ></textarea></label
+            >
+            <button type="button" class="rounded-lg border p-2" onclick={() => reviseSettings(edit)}
+              >Revise with these settings</button
+            >
+          </fieldset>
           <WorkerProgress steps={edit.progress} state={edit.state} />
           {#if edit.revisions?.length}<label class="text-sm"
               >Revision <select
@@ -814,7 +894,7 @@
             title="Revise edit"
             aria-label="Revise edit from sidebar"
             disabled={['queued', 'editing'].includes(edit.state)}
-            onclick={() => revise(edit)}><svg viewBox="0 0 24 24"><path d={mdiPencil} /></svg></button
+            onclick={() => revise(edit)}><svg viewBox="0 0 24 24"><path d={mdiMovieEditOutline} /></svg></button
           >
           <ol class="my-3 space-y-2">
             {#each clips as clip (clip.id)}
@@ -844,12 +924,18 @@
             class="rounded-lg border p-2 text-sm"
             disabled={['queued', 'editing'].includes(edit.state) ||
               ['queued', 'building', 'ready'].includes(library?.state ?? '')}
-            onclick={() => resolve(edit)}>Open in Resolve</button
+            onclick={() => resolve(edit)}
+            >{library?.state === 'failed' ? 'Retry Resolve build' : 'Build Resolve project'}</button
           >
           {#if library?.state === 'ready'}<a
               class="my-2 block underline"
+              href={`hevmedia://resolve/${edit.id}/${revisions[edit.id] ?? edit.revision}`}>Open in Resolve</a
+            >
+            <p class="text-sm">Files land in ~/Movies/hev-video/&lt;project-name&gt;/.</p>
+            <a
+              class="my-2 block underline"
               href={`/hev-chat/edits/${edit.id}/resolve-download?revision=${revisions[edit.id] ?? edit.revision}`}
-              download>Download for Resolve</a
+              download>Download ZIP</a
             >{/if}
           {#if library}<WorkerProgress steps={library.progress} state={library.state} />
             <p class="text-sm">{library.message}</p>{/if}
@@ -873,6 +959,31 @@
 {/if}
 
 <style>
+  .thread-row {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+  }
+  .thread-title {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .thread-row .icon-action {
+    flex-shrink: 0;
+  }
+  fieldset input:not([type='checkbox']),
+  fieldset textarea,
+  fieldset select {
+    max-width: 100%;
+    width: 100%;
+    border: 1px solid #8886;
+    border-radius: 0.4rem;
+    padding: 0.3rem;
+  }
+
   @layer components {
     .icon-action {
       display: inline-flex;

@@ -430,3 +430,9 @@ export function mergeText(captions) {
   }
   return out;
 }
+
+// Resolve failures belong to the handoff, never to the rendered edit.
+export async function prebuildResolve(queue, job) {
+  try { await queue.request(job, job.revision); }
+  catch { /* request/build failures are surfaced by Resolve status and retry */ }
+}

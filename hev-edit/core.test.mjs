@@ -170,3 +170,13 @@ test("public progress preserves stage history and safe timeline without source p
   assert.equal(result.assets[0].id, "clip");
   assert.ok(!JSON.stringify(result).includes("/external/"));
 });
+
+test('revision settings restrict editable fields and validate the merged render brief', async () => {
+ const { revisionSettings, validate } = await import('./core.mjs');
+ const settings = revisionSettings({aspectRatio:'4:5',length:6,captions:false,titles:'Title',music:''});
+ const brief = {assets:[{id:'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',originalPath:'/external/a.mp4'}],brief:'Apply settings',caption:'',length:4};
+ assert.equal(validate({...brief,...settings}).aspectRatio,'4:5');
+ assert.throws(()=>revisionSettings({assets:[]}));
+ assert.throws(()=>validate({...brief,...revisionSettings({aspectRatio:'7:3'})}));
+ assert.throws(()=>validate({...brief,...revisionSettings({captions:'yes'})}));
+});
