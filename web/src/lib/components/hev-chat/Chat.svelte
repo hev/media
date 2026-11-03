@@ -610,7 +610,7 @@
         >{/if}
       {#if busy}<p role="status" class="py-2 text-sm">{status}</p>{/if}
       {#if question.startsWith('/')}<div aria-label="Slash commands" class="flex flex-wrap gap-2">
-          {#each commands.filter((c) => c.startsWith(question.slice(1).split(' ', 1)[0])) as name}<button
+          {#each commands.filter((c) => c.startsWith(question.slice(1).split(' ', 1)[0])) as name (name)}<button
               type="button"
               class="rounded-sm border p-2"
               onclick={() => command(name)}>/{name}</button
