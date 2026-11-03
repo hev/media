@@ -50,7 +50,7 @@ test("queue coalesces, serializes revisions, caches ready and persists states", 
   assert.equal((await restored.status(job, 2)).state, "ready");
   assert.equal(JSON.parse(await readFile(q.file(job, 1))).state, "ready");
 });
-test("failed builds and interrupted queued/building builds never replay", async (t) => {
+test("failed and interrupted builds require an explicit retry", async (t) => {
   const root = await fixture(t);
   let count = 0;
   const q = new ResolveQueue({
@@ -63,8 +63,11 @@ test("failed builds and interrupted queued/building builds never replay", async 
   await q.request(job, 1);
   await q.drain();
   assert.equal((await q.status(job, 1)).state, "failed");
-  await q.request(job, 1);
+  await q.drain();
   assert.equal(count, 1);
+  await q.request(job, 1);
+  await q.drain();
+  assert.equal(count, 2);
   await q.persist({ ...job, revision: 2, state: "building" });
   const restored = new ResolveQueue({
     root,
@@ -205,4 +208,19 @@ test("FCPXML bridge writes ordered rational ranges, portrait crop and separate S
     await readFile(path.join(root, "out/captions.srt"), "utf8"),
     /00:00:00,000 --> 00:00:03,000\nEditable title/,
   );
+});
+
+test("atomic original staging replaces read-only clones without changing source bytes", async (t) => {
+  const { cloneOriginal } = await import("./resolve.mjs");
+  const { chmod } = await import("node:fs/promises");
+  const root = await fixture(t),
+    source = path.join(root, "source"),
+    dest = path.join(root, "dest");
+  await writeFile(source, "original bytes");
+  await chmod(source, 0o400);
+  await writeFile(dest, "old bytes");
+  await chmod(dest, 0o400);
+  await cloneOriginal(source, dest);
+  assert.equal(await readFile(dest, "utf8"), "original bytes");
+  assert.equal(await readFile(source, "utf8"), "original bytes");
 });
