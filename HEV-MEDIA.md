@@ -103,3 +103,7 @@ and a header list. Instagram posting remains a separate human action in Buffer.
 Revisions retain their own previews. The Publish button sends only the chosen
 revision to Buffer as a draft, once; rendering and revising never create drafts.
 An ambiguous publish failure stays claimed for ledger inspection before recovery.
+
+## Resolve handoff
+
+Use **Open in Resolve** on a rendered revision. The card tracks the queued/building/ready/failed state. Copy `resolve-open JOB REVISION` on the laptop (install `hev-edit/bin/resolve-open`), or use **Download for Resolve**. Unzip into `~/Movies/hev-video/`, then File → Import Project → the `.drp`. Import `captions.srt` as subtitles; titles and captions remain editable text. The FCPXML is a timeline fallback. Original media and up to four unused theme clips travel with the project; extras are in an Extras bin. No publishing occurs.

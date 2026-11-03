@@ -4,9 +4,9 @@ type Options = ReturnType<typeof sessionOptions>;
 const object = { type: 'object' as const, additionalProperties: false };
 export const editTools = [
   {
-    name: 'open_in_imovie',
+    name: 'open_in_resolve',
     description:
-      'Queue an editable native iMovie library for a rendered edit revision. Returns build status and laptop pull command. No publishing or Buffer action.',
+      'Queue an editable Resolve project for a rendered edit revision. Returns build status and laptop pull command. No publishing or Buffer action.',
     input_schema: {
       ...object,
       properties: { id: { type: 'string' }, revision: { type: 'number' } },
@@ -130,7 +130,7 @@ export async function runEditTool(
     if (typeof input.id !== 'string' || !/^[a-f0-9-]{36}$/i.test(input.id))
       throw Error('Invalid job id');
     path += '/' + input.id;
-    if (name === 'open_in_imovie') {
+    if (name === 'open_in_resolve') {
       if (!Number.isInteger(input.revision) || input.revision < 1)
         throw Error('Invalid revision');
       const response = await request(path);
@@ -139,15 +139,15 @@ export async function runEditTool(
       if (!job.revisions?.some((r: any) => r.revision === input.revision))
         throw Error('Revision unavailable');
       const build = await request(
-        path + '/imovie-library?revision=' + input.revision,
+        path + '/resolve?revision=' + input.revision,
         { method: 'POST' },
       );
-      if (!build.ok) throw Error('iMovie library could not be queued');
+      if (!build.ok) throw Error('Resolve project could not be queued');
       return {
         ...job,
-        imovie: await build.json(),
-        libraryDownload: `/hev-chat/edits/${input.id}/imovie-library-download?revision=${input.revision}`,
-        download: `/hev-chat/edits/${input.id}/imovie-kit?revision=${input.revision}`,
+        resolve: await build.json(),
+        libraryDownload: `/hev-chat/edits/${input.id}/resolve-download?revision=${input.revision}`,
+        download: `/hev-chat/edits/${input.id}/resolve-download?revision=${input.revision}`,
       };
     }
 
@@ -177,18 +177,46 @@ export async function runEditTool(
   return response.json();
 }
 
-
-export async function imovieCandidates(thread: {selected: any[]; messages: {assets:any[]}[]; smartQuery?:string},options: Options, api = sdk) {
- const seen = new Set<string>();
- const candidates = [...thread.selected,...thread.messages.flatMap(m=>m.assets)].filter(a=>a.type === 'VIDEO' && !seen.has(a.id) && !!seen.add(a.id));
- if(thread.smartQuery) {
-  const hits = await api.searchSmart({smartSearchDto:{query:thread.smartQuery,type:sdk.AssetTypeEnum.Video,size:40}},options);
-  for(const a of hits.assets.items) if(!seen.has(a.id)) {seen.add(a.id);candidates.push(a);}
- }
- const result=[];
- for(const a of candidates.slice(0,40)) {
-  const asset=await api.getAssetInfo({id:a.id},options);
-  if(asset.type === 'VIDEO' && asset.originalPath?.startsWith('/external/')) result.push({id:asset.id,type:asset.type,originalPath:asset.originalPath});
- }
- return result;
+export async function resolveCandidates(
+  thread: {
+    selected: any[];
+    messages: { assets: any[] }[];
+    smartQuery?: string;
+  },
+  options: Options,
+  api = sdk,
+) {
+  const seen = new Set<string>();
+  const candidates = [
+    ...thread.selected,
+    ...thread.messages.flatMap((m) => m.assets),
+  ].filter((a) => a.type === 'VIDEO' && !seen.has(a.id) && !!seen.add(a.id));
+  if (thread.smartQuery) {
+    const hits = await api.searchSmart(
+      {
+        smartSearchDto: {
+          query: thread.smartQuery,
+          type: sdk.AssetTypeEnum.Video,
+          size: 40,
+        },
+      },
+      options,
+    );
+    for (const a of hits.assets.items)
+      if (!seen.has(a.id)) {
+        seen.add(a.id);
+        candidates.push(a);
+      }
+  }
+  const result = [];
+  for (const a of candidates.slice(0, 40)) {
+    const asset = await api.getAssetInfo({ id: a.id }, options);
+    if (asset.type === 'VIDEO' && asset.originalPath?.startsWith('/external/'))
+      result.push({
+        id: asset.id,
+        type: asset.type,
+        originalPath: asset.originalPath,
+      });
+  }
+  return result;
 }

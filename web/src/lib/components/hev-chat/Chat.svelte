@@ -88,12 +88,12 @@
   type LibraryBuild = { state: string; message: string; command?: string };
   let libraryBuilds = $state<Record<string, LibraryBuild>>({});
   let libraryPending = $state<Record<string, boolean>>({});
-  async function imovie(edit: Edit) {
+  async function resolve(edit: Edit) {
     const revision = revisions[edit.id] ?? edit.revision;
     const key = edit.id + ':' + revision;
     libraryPending[key] = true;
     try {
-      libraryBuilds[key] = await api(`/edits/${edit.id}/imovie-library?revision=${revision}`, 'POST');
+      libraryBuilds[key] = await api(`/edits/${edit.id}/resolve?revision=${revision}`, 'POST');
     } catch (error_) {
       error = String(error_);
     } finally {
@@ -106,7 +106,7 @@
       const key = edit.id + ':' + revision;
       // GET only reads existing state; viewing a card never starts a build.
       try {
-        const response = await fetch(`/hev-chat/edits/${edit.id}/imovie-library?revision=${revision}`);
+        const response = await fetch(`/hev-chat/edits/${edit.id}/resolve?revision=${revision}`);
         if (response.ok) libraryBuilds[key] = await response.json();
       } catch {
         /* preserve last observed state during a network interruption */
@@ -396,22 +396,25 @@
                         class="underline"
                         disabled={libraryPending[libraryKey] ||
                           ['queued', 'waiting', 'building', 'ready'].includes(library?.state ?? '')}
-                        onclick={() => imovie(edit)}>Open in iMovie</button
+                        onclick={() => resolve(edit)}>Open in Resolve</button
                       >{/if}
                     {#if library}
                       <p role="status" class="mt-2">{library.message}</p>
                       {#if library.state === 'ready' && library.command}
                         <a
                           class="mt-2 inline-block rounded-lg bg-primary p-2 text-on-primary"
-                          href={`/hev-chat/edits/${edit.id}/imovie-library-download?revision=${revisions[edit.id] ?? edit.revision}`}
-                          download>Download for iMovie</a
+                          href={`/hev-chat/edits/${edit.id}/resolve-download?revision=${revisions[edit.id] ?? edit.revision}`}
+                          download>Download for Resolve</a
                         >
-                        <p class="mt-2">Unzip, then double-click to open in iMovie.</p>
+                        <p class="mt-2">
+                          Use the laptop command, or unzip into ~/Movies/hev-video. In Resolve: File → Import Project →
+                          .drp. Import captions.srt as subtitles.
+                        </p>
                         <details class="mt-2">
                           <summary>Copy laptop command</summary>
                           <p class="mt-2">Run on your laptop:</p>
                           <input
-                            aria-label="iMovie laptop command"
+                            aria-label="Resolve laptop command"
                             readonly
                             value={library.command}
                             class="w-full rounded border p-2 font-mono"
@@ -424,11 +427,6 @@
                         </details>
                       {/if}
                     {/if}
-                    <a
-                      class="ml-3 underline"
-                      href={`/hev-chat/edits/${edit.id}/imovie-kit?revision=${revisions[edit.id] ?? edit.revision}`}
-                      >Manual kit</a
-                    >
                   {/if}
                   {#if revision?.bufferUrl}<a
                       class="underline"
