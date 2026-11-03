@@ -42,6 +42,11 @@ tl = pool.ImportTimelineFromFile(str(folder / 'timeline.fcpxml'), {'timelineName
 if not tl:
     sys.exit('Resolve rejected the FCPXML')
 project.SetCurrentTimeline(tl)
+expected=[round(c['out']*cut['fps'])-round(c['in']*cut['fps']) for c in cut['clips']]
+items=tl.GetItemListInTrack('video',1)
+if tl.GetStartFrame()!=0 or len(items)!=len(expected) or [c.GetDuration() for c in items]!=expected or tl.GetEndFrame()!=sum(expected):
+    sys.exit('Resolve imported incorrect timeline ranges; refusing to export')
+
 used = set()
 for kind in ('video', 'audio'):
     for track in range(1, tl.GetTrackCount(kind)+1):

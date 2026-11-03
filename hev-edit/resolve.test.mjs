@@ -274,3 +274,38 @@ test("fit padding plate has a transparent source area and opaque blurred bars", 
   assert.equal(frame[(80 * 90 + 45) * 4 + 3], 0);
   assert.equal(frame[(10 * 90 + 45) * 4 + 3], 255);
 });
+
+test("overlapping title and speech become non-overlapping multiline SRT cues", async () => {
+  const { mergeText } = await import("./resolve.mjs");
+  assert.deepEqual(
+    mergeText([
+      { start: 0, end: 6, text: "Title" },
+      { start: 2, end: 4, text: "Speech" },
+    ]),
+    [
+      { start: 0, end: 2, text: "Title" },
+      { start: 2, end: 4, text: "Title\nSpeech" },
+      { start: 4, end: 6, text: "Title" },
+    ],
+  );
+});
+test("connected overlays include the parent embedded timecode origin", async (t) => {
+  const root = await fixture(t);
+  await mkdir(path.join(root, "out"));
+  await writeFile(
+    path.join(root, "cut.json"),
+    JSON.stringify({ fps: 30, clips: [{ in: 1 }] }),
+  );
+  await writeFile(
+    path.join(root, "out/timeline.fcpxml"),
+    '<fcpxml><spine><asset-clip start="3601s"><asset-clip lane="1" offset="30/30s"/></asset-clip></spine></fcpxml>',
+  );
+  execFileSync("python3", [
+    new URL("./resolve-xml.py", import.meta.url).pathname,
+    root,
+  ]);
+  assert.match(
+    await readFile(path.join(root, "out/timeline.fcpxml"), "utf8"),
+    /offset="3601\/1s"/,
+  );
+});

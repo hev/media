@@ -95,7 +95,7 @@ export function bridge(cut) {
     fps,
     width,
     height,
-    captions: captions.sort((a, b) => a.start - b.start),
+    captions: mergeText(captions),
     overlays: cut.overlays ?? [],
   };
 }
@@ -309,6 +309,10 @@ export async function buildResolve({
     "srt",
     path.join(out, "cut.json"),
   ]);
+  await invoke("python3", [
+    fileURLToPath(new URL("./resolve-xml.py", import.meta.url)),
+    out,
+  ]);
   for (const f of ["timeline.fcpxml", "captions.srt"])
     await copyFile(path.join(out, "out", f), path.join(out, f));
   const drp = path.join(out, `${name}.drp`);
@@ -362,4 +366,21 @@ export async function downloadResolve(queue, job, revision, res) {
 export async function cloneOriginal(source, dest) {
   await copyFile(source, dest + ".tmp", constants.COPYFILE_FICLONE);
   await rename(dest + ".tmp", dest);
+}
+
+export function mergeText(captions) {
+  const points = [...new Set(captions.flatMap((c) => [c.start, c.end]))].sort(
+      (a, b) => a - b,
+    ),
+    out = [];
+  for (let i = 0; i < points.length - 1; i++) {
+    const start = points[i],
+      end = points[i + 1],
+      text = captions
+        .filter((c) => c.start <= start && c.end >= end)
+        .map((c) => c.text)
+        .join("\n");
+    if (text) out.push({ start, end, text });
+  }
+  return out;
 }
