@@ -364,3 +364,44 @@ test("Resolve failure projection never exposes private errors or paths, includin
   assert.ok(!JSON.stringify(result).includes("/secret"));
   assert.match(result.progress[0].message, /private build log/);
 });
+
+test("native project switching preserves empty unnamed projects and refuses unnamed content before saving", () => {
+  const code = `
+import sys
+sys.path.insert(0, sys.argv[1])
+from resolve_current import preserve_current
+class Folder:
+    def __init__(self, clips): self.clips=clips
+    def GetClipList(self): return self.clips
+    def GetSubFolderList(self): return []
+class Pool:
+    def __init__(self, clips): self.clips=clips
+    def GetRootFolder(self): return Folder(self.clips)
+class Project:
+    def __init__(self, name, clips=[]): self.name=name; self.clips=clips; self.calls=[]
+    def GetName(self): return self.name
+    def GetTimelineCount(self): return 0
+    def GetMediaPool(self): return Pool(self.clips)
+    def SetName(self, name): self.calls.append('rename'); self.name=name; return True
+class Manager:
+    def __init__(self, project, saved): self.project=project; self.saved=saved
+    def GetProjectListInCurrentFolder(self): return self.saved
+    def SaveProject(self):
+        assert self.project.name != 'New Project', 'would open native modal'
+        self.project.calls.append('save'); return True
+    def CloseProject(self, p): p.calls.append('close'); return True
+p=Project('New Project'); preserve_current(Manager(p, []),p,'job')
+assert p.name == 'job-empty-before-build' and p.calls == ['rename','save','close']
+p=Project('New Project',['clip'])
+try: preserve_current(Manager(p,[]),p,'job'); raise AssertionError('must refuse')
+except RuntimeError: pass
+assert p.calls == []
+p=Project('Existing',['clip']); preserve_current(Manager(p,['Existing']),p,'job')
+assert p.name == 'Existing' and p.calls == ['save','close']
+p=Project('New Project')
+try: preserve_current(Manager(p,['job-empty-before-build']),p,'job'); raise AssertionError('collision')
+except RuntimeError: pass
+assert p.calls == []
+`;
+  execFileSync("python3", ["-c", code, new URL(".", import.meta.url).pathname]);
+});
