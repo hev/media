@@ -255,7 +255,7 @@
     timer = setInterval(() => void refreshEdits(), 3000);
   });
   onDestroy(() => clearInterval(timer));
-  type Photo = { id: string; originalFileName?: string; type?: string; duration?: string };
+  type Photo = { id: string; originalFileName?: string; type?: string; duration?: number | null };
   type ToolStep = {
     id: string;
     name: string;
@@ -667,7 +667,7 @@
                     title="Revise edit"
                     aria-label="Revise edit"
                     disabled={busy || ['queued', 'editing'].includes(edit.state)}
-                    onclick={() => revise(edit)}>Revise</button
+                    onclick={() => revise(edit)}><svg viewBox="0 0 24 24"><path d={mdiPencil} /></svg></button
                   >
                   {#if revision || edit.preview}
                     {@const libraryKey = edit.id + ':' + (revisions[edit.id] ?? edit.revision)}
@@ -828,7 +828,9 @@
                   ><span class="block truncate">{info?.originalFileName ?? 'Selected moment'}</span>{info?.type ===
                   'IMAGE'
                     ? 'Photo'
-                    : (info?.duration ?? 'Video')}{#if timeline?.some((c) => c.id === clip.id)}
+                    : info?.duration
+                      ? `${(info.duration / 1000).toFixed(1)}s source`
+                      : 'Video'}{#if timeline?.some((c) => c.id === clip.id)}
                     · {timeline
                       .filter((c) => c.id === clip.id)
                       .reduce((sum, c) => sum + c.duration, 0)

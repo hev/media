@@ -157,6 +157,8 @@ test('video titles strip Adam-style conversational lead-ins and retain temporal 
       'Skiing highlights from last winter',
     ],
     ['I want a fall bike edit', 'Fall bike highlights'],
+    ['Could you help me make a reel of the beach day?', 'Beach day highlights'],
+    ['show me photos of grandma', 'Grandma highlights'],
     ["I'd like to create a fall bike reel", 'Fall bike highlights'],
     [
       'Could you please help me find family biking videos',
