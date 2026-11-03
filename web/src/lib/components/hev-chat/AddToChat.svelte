@@ -9,29 +9,33 @@
     const r = await fetch('/hev-chat' + path, {
       method: body ? 'POST' : 'GET',
       headers: { 'Content-Type': 'application/json' },
-      ...(body ? { body: JSON.stringify(body) } : {}),
+      ...(body && { body: JSON.stringify(body) }),
     });
-    if (!r.ok) throw Error('Could not add to chat. Check your selection and sign-in.');
+    if (!r.ok) throw new Error('Could not add to chat. Check your selection and sign-in.');
     return r.json();
   }
   async function toggle() {
     try {
-      threads = (await request('/threads')).slice(0, 8);
+      const recent = await request('/threads');
+      threads = recent.slice(0, 8);
       open = !open;
       error = '';
-    } catch (e) {
-      error = String(e);
+    } catch (error_) {
+      error = String(error_);
     }
   }
   async function add(id?: string) {
     busy = true;
     error = '';
     try {
-      id ??= (await request('/threads', {})).id;
+      if (!id) {
+        const created = await request('/threads', {});
+        id = created.id;
+      }
       await request(`/threads/${id}/assets`, { ids });
       await goto('/chat/' + id);
-    } catch (e) {
-      error = String(e);
+    } catch (error_) {
+      error = String(error_);
     } finally {
       busy = false;
     }
@@ -42,7 +46,7 @@
   <button
     type="button"
     class="rounded-lg border px-3 py-2"
-    disabled={busy || !ids.length || ids.length > 20}
+    disabled={busy || ids.length === 0 || ids.length > 20}
     onclick={toggle}>Add to chat</button
   >
   {#if open}

@@ -30,12 +30,9 @@
     current = await api('/threads/' + current.id + '/setup', 'POST', setup);
   }
   async function openSetup() {
-    if (!current) {
-      const t = await api('/threads', 'POST');
-      await goto('/chat/' + t.id);
-      await load(t.id);
-    }
-    setup = current?.setup ?? {
+    const creating = !current;
+    const target = current ?? (await api('/threads', 'POST'));
+    const value = target.setup ?? {
       aspectRatio: '9:16',
       length: 30,
       captions: true,
@@ -44,7 +41,17 @@
       brief: 'A highlight reel of these moments',
       assetIds: selected,
     };
-    await saveSetup();
+    // /chat and /chat/[id] mount separate pages. Persist before changing route.
+    const updated = await api('/threads/' + target.id + '/setup', 'POST', value);
+    current = updated;
+    setup = updated.setup;
+    if (creating) {
+      messages = updated.messages;
+      selected = updated.selected.map((a: Photo) => a.id);
+      edits = [];
+      await list();
+      await goto('/chat/' + updated.id);
+    }
   }
   async function command(name: string) {
     if (name === 'edit') {
@@ -100,6 +107,12 @@
   }
   async function newThread() {
     const t = await api('/threads', 'POST');
+    // Set the route's state before navigation so its effect cannot race setup/send.
+    current = t;
+    messages = t.messages;
+    selected = [];
+    setup = undefined;
+    edits = [];
     await list();
     await goto('/chat/' + t.id);
   }
@@ -230,9 +243,10 @@
   async function send() {
     if (busy || !question.trim()) return;
     if (!current) {
-      const t = await api('/threads', 'POST');
-      await goto('/chat/' + t.id);
-      await load(t.id);
+      current = await api('/threads', 'POST');
+      messages = [];
+      selected = [];
+      edits = [];
     }
     const slash = question.trim().match(/^\/(\w+)(?:\s+(.*))?$/s);
     if (slash && slash[1] !== 'search') {
@@ -328,6 +342,7 @@
         setup = current?.setup;
       }
       await list();
+      if (current && page.params.threadId !== current.id) await goto('/chat/' + current.id);
       await scrollLatest();
     }
   }
@@ -401,7 +416,7 @@
         >
           <label
             >Aspect ratio <select aria-label="Aspect ratio" bind:value={setup.aspectRatio} onchange={saveSetup}
-              >{#each ['9:16', '1:1', '16:9', '4:5'] as ratio}<option>{ratio}</option>{/each}</select
+              >{#each ['9:16', '1:1', '16:9', '4:5'] as ratio (ratio)}<option>{ratio}</option>{/each}</select
             ></label
           >
           <label
@@ -447,7 +462,7 @@
           <button
             class="rounded-lg border p-2"
             type="submit"
-            disabled={busy || !selected.length || selected.length > 20}>Start edit</button
+            disabled={busy || selected.length === 0 || selected.length > 20}>Start edit</button
           >
         </form>
       {/if}
@@ -544,7 +559,7 @@
                       <p role="status" class="mt-2">{library.message}</p>
                       {#if library.state === 'ready' && library.command}
                         <a
-                          class="mt-2 inline-block rounded-lg bg-primary p-2 text-on-primary"
+                          class="text-on-primary mt-2 inline-block rounded-lg bg-primary p-2"
                           href={`/hev-chat/edits/${edit.id}/resolve-download?revision=${revisions[edit.id] ?? edit.revision}`}
                           download>Download for Resolve</a
                         >
@@ -559,7 +574,7 @@
                             aria-label="Resolve laptop command"
                             readonly
                             value={library.command}
-                            class="w-full rounded border p-2 font-mono"
+                            class="w-full rounded-sm border p-2 font-mono"
                           />
                           <button
                             type="button"
@@ -595,9 +610,9 @@
         >{/if}
       {#if busy}<p role="status" class="py-2 text-sm">{status}</p>{/if}
       {#if question.startsWith('/')}<div aria-label="Slash commands" class="flex flex-wrap gap-2">
-          {#each commands.filter((c) => c.startsWith(question.slice(1).split(' ')[0])) as name}<button
+          {#each commands.filter((c) => c.startsWith(question.slice(1).split(' ', 1)[0])) as name}<button
               type="button"
-              class="rounded border p-2"
+              class="rounded-sm border p-2"
               onclick={() => command(name)}>/{name}</button
             >{/each}
         </div>{/if}
