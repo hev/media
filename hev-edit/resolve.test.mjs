@@ -224,3 +224,53 @@ test("atomic original staging replaces read-only clones without changing source 
   assert.equal(await readFile(dest, "utf8"), "original bytes");
   assert.equal(await readFile(source, "utf8"), "original bytes");
 });
+
+test("fit padding plate has a transparent source area and opaque blurred bars", async (t) => {
+  const root = await fixture(t);
+  await mkdir(path.join(root, "media"));
+  execFileSync("ffmpeg", [
+    "-v",
+    "error",
+    "-f",
+    "lavfi",
+    "-i",
+    "testsrc2=size=160x90:rate=30",
+    "-t",
+    "0.2",
+    "-c:v",
+    "libx264",
+    path.join(root, "media/source.mp4"),
+  ]);
+  await writeFile(
+    path.join(root, "cut.json"),
+    JSON.stringify(
+      bridge({
+        width: 90,
+        height: 160,
+        clips: [{ src: "media/source.mp4", in: 0, out: 0.2, fit: "fit" }],
+      }),
+    ),
+  );
+  execFileSync("python3", [
+    new URL("./resolve-fit.py", import.meta.url).pathname,
+    root,
+  ]);
+  const cut = JSON.parse(await readFile(path.join(root, "cut.json")));
+  assert.equal(cut.overlays[0].comp, "FitBackground");
+  assert.equal(cut.overlays[0].end, 0.2);
+  const frame = execFileSync("ffmpeg", [
+    "-v",
+    "error",
+    "-i",
+    path.join(root, cut.overlays[0].file),
+    "-frames:v",
+    "1",
+    "-pix_fmt",
+    "rgba",
+    "-f",
+    "rawvideo",
+    "-",
+  ]);
+  assert.equal(frame[(80 * 90 + 45) * 4 + 3], 0);
+  assert.equal(frame[(10 * 90 + 45) * 4 + 3], 255);
+});
