@@ -52,12 +52,12 @@ test('start resolves videos using caller identity and sends paths only to launch
   );
   api.getAssetInfo = async () => ({
     id,
-    type: 'IMAGE',
+    type: 'AUDIO',
     originalPath: '/external/x',
   });
   await assert.rejects(
     runEditTool('start_edit', input, options, true, api, request),
-    /original videos/,
+    /original photos or videos/,
   );
 });
 test('status and revisions validate IDs and request shape', async () => {
@@ -201,4 +201,36 @@ test('browser and text Resolve requests share validated shortlist and theme extr
     ['chosen', 'theme'],
   );
   assert.deepEqual(calls, ['chosen', 'foreign', 'theme']);
+});
+
+test('photo edits preserve chosen aspect, captions, titles and named licensed music', async () => {
+  const api: any = {
+    getMyUser: async () => ({ isAdmin: true }),
+    getAssetInfo: async () => ({
+      id,
+      type: 'IMAGE',
+      originalPath: '/external/photo.jpg',
+    }),
+  };
+  await runEditTool(
+    'start_edit',
+    {
+      ...input,
+      aspectRatio: '1:1',
+      captions: false,
+      titles: 'Family',
+      music: 'licensed.wav',
+    },
+    options,
+    true,
+    api,
+    async (_path, init) => {
+      const body = JSON.parse(init!.body as string);
+      assert.equal(body.aspectRatio, '1:1');
+      assert.equal(body.captions, false);
+      assert.equal(body.titles, 'Family');
+      assert.equal(body.music, 'licensed.wav');
+      return Response.json({ id, state: 'queued' });
+    },
+  );
 });

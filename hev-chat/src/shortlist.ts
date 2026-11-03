@@ -1,3 +1,4 @@
+import { isConfirmation } from './ux.js';
 type Asset = {
   id: string;
   originalFileName?: string;
@@ -30,9 +31,7 @@ export class Shortlists {
   ) {
     if (
       !hadAssistant ||
-      !/^(yes[,.! ]*|confirm(?:ed)?[,.! ]*|go ahead[,.! ]*|start the edit[,.! ]*|make the reel[,.! ]*)$/i.test(
-        latest.trim(),
-      ) ||
+      !isConfirmation(latest) ||
       !Array.isArray(ids) ||
       !ids.length ||
       !this.sessions.has(session) ||

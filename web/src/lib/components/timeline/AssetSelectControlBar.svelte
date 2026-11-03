@@ -1,4 +1,5 @@
 <script lang="ts">
+  import AddToChat from '$lib/components/hev-chat/AddToChat.svelte';
   import ControlAppBar from '$lib/components/shared-components/ControlAppBar.svelte';
   import { assetMultiSelectManager } from '$lib/managers/asset-multi-select-manager.svelte';
   import { mdiClose } from '@mdi/js';
@@ -24,6 +25,7 @@
     </div>
   {/snippet}
   {#snippet trailing()}
+    <AddToChat ids={assets.map((a) => a.id)} />
     {@render children?.()}
   {/snippet}
 </ControlAppBar>

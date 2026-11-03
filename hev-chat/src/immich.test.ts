@@ -63,7 +63,7 @@ test('all seven tools call only their SDK read operation with isolated caller op
         (_, method) =>
         async (...args: any[]) => {
           calls.push([method, ...args]);
-          return {};
+          return { assets: { items: [] } };
         },
     },
   ) as any;
@@ -81,7 +81,13 @@ test('all seven tools call only their SDK read operation with isolated caller op
     { id: 'asset' },
   ];
   for (let i = 0; i < tools.length; i++)
-    await runTool(tools[i].name, inputs[i], options, api);
+    await runTool(
+      tools[i].name,
+      inputs[i],
+      options,
+      api,
+      async (_q, assets) => assets,
+    );
   assert.deepEqual(
     calls.map((call) => call[0]),
     [
@@ -95,7 +101,7 @@ test('all seven tools call only their SDK read operation with isolated caller op
     ],
   );
   assert.ok(calls.every((call) => call.at(-1) === options));
-  assert.equal(calls[0][1].smartSearchDto.size, 40);
+  assert.equal(calls[0][1].smartSearchDto.size, 48);
   const bob = sessionOptions(
     { authorization: 'Bearer bob' },
     'http://immich/api',
@@ -159,7 +165,13 @@ test('statistics returns separate photo and video counts to the model with calle
       return counts;
     },
   } as any;
-  const result = await runTool('statistics', {}, options, api);
+  const result = await runTool(
+    'statistics',
+    {},
+    options,
+    api,
+    async (_q, assets) => assets,
+  );
   assert.deepEqual(result, counts);
   assert.deepEqual(summarizeResult('statistics', result), counts);
   assert.match(

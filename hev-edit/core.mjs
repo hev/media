@@ -29,12 +29,23 @@ export function validate(input) {
       (k) =>
         ![
           "assets",
+          "aspectRatio",
+          "captions",
+          "titles",
+          "music",
           "brief",
           "length",
           "caption",
           "threadId",
           "ownerId",
         ].includes(k),
+    ) ||
+    !["9:16", "1:1", "16:9", "4:5"].includes(input.aspectRatio ?? "9:16") ||
+    (input.captions !== undefined && typeof input.captions !== "boolean") ||
+    ["titles", "music"].some(
+      (k) =>
+        input[k] !== undefined &&
+        (typeof input[k] !== "string" || input[k].length > 2000),
     ) ||
     !Array.isArray(input.assets) ||
     input.assets.length < 1 ||
