@@ -111,7 +111,7 @@ test('status can discover existing job IDs for a later conversational revision',
   );
 });
 
-test('iMovie tool validates revision and returns the authenticated download link without publishing', async () => {
+test('Resolve tool validates revision and returns the authenticated download link without publishing', async () => {
   const api: any = { getMyUser: async () => ({ isAdmin: true }) };
   const paths: string[] = [];
   const request: any = async (path: string) => {
@@ -119,21 +119,24 @@ test('iMovie tool validates revision and returns the authenticated download link
     return Response.json({ id, revisions: [{ revision: 2 }] });
   };
   const result = await runEditTool(
-    'open_in_imovie',
+    'open_in_resolve',
     { id, revision: 2 },
     options,
     false,
     api,
     request,
   );
-  assert.equal(result.download, `/hev-chat/edits/${id}/imovie-kit?revision=2`);
+  assert.equal(
+    result.download,
+    `/hev-chat/edits/${id}/resolve-download?revision=2`,
+  );
   assert.deepEqual(paths, [
     '/jobs/' + id,
-    '/jobs/' + id + '/imovie-library?revision=2',
+    '/jobs/' + id + '/resolve?revision=2',
   ]);
   await assert.rejects(
     runEditTool(
-      'open_in_imovie',
+      'open_in_resolve',
       { id, revision: 0 },
       options,
       false,
@@ -143,7 +146,7 @@ test('iMovie tool validates revision and returns the authenticated download link
   );
   await assert.rejects(
     runEditTool(
-      'open_in_imovie',
+      'open_in_resolve',
       { id, revision: 1 },
       options,
       false,
@@ -154,7 +157,7 @@ test('iMovie tool validates revision and returns the authenticated download link
   api.getMyUser = async () => ({ isAdmin: false });
   await assert.rejects(
     runEditTool(
-      'open_in_imovie',
+      'open_in_resolve',
       { id, revision: 2 },
       options,
       false,
@@ -165,11 +168,37 @@ test('iMovie tool validates revision and returns the authenticated download link
   );
 });
 
-
-test('browser and text iMovie requests share validated shortlist and theme extras',async()=>{
- const {imovieCandidates}=await import('./edits.js');
- const calls:string[]=[];
- const api:any={searchSmart:async()=>({assets:{items:[{id:'theme'},{id:'chosen'}]}}),getAssetInfo:async({id}:{id:string})=>{calls.push(id);return {id,type:'VIDEO',originalPath:id === 'foreign' ? '/elsewhere/file' : '/external/'+id};}};
- const result=await imovieCandidates({selected:[{id:'chosen',type:'VIDEO'},{id:'foreign',type:'VIDEO'}],messages:[{assets:[{id:'chosen',type:'VIDEO'}]}],smartQuery:'beach'},options,api);
- assert.deepEqual(result.map(a=>a.id),['chosen','theme']);assert.deepEqual(calls,['chosen','foreign','theme']);
+test('browser and text Resolve requests share validated shortlist and theme extras', async () => {
+  const { resolveCandidates } = await import('./edits.js');
+  const calls: string[] = [];
+  const api: any = {
+    searchSmart: async () => ({
+      assets: { items: [{ id: 'theme' }, { id: 'chosen' }] },
+    }),
+    getAssetInfo: async ({ id }: { id: string }) => {
+      calls.push(id);
+      return {
+        id,
+        type: 'VIDEO',
+        originalPath: id === 'foreign' ? '/elsewhere/file' : '/external/' + id,
+      };
+    },
+  };
+  const result = await resolveCandidates(
+    {
+      selected: [
+        { id: 'chosen', type: 'VIDEO' },
+        { id: 'foreign', type: 'VIDEO' },
+      ],
+      messages: [{ assets: [{ id: 'chosen', type: 'VIDEO' }] }],
+      smartQuery: 'beach',
+    },
+    options,
+    api,
+  );
+  assert.deepEqual(
+    result.map((a) => a.id),
+    ['chosen', 'theme'],
+  );
+  assert.deepEqual(calls, ['chosen', 'foreign', 'theme']);
 });

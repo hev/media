@@ -113,7 +113,7 @@ test('HTTP threads authenticate and isolate owners for reads, changes, deletion 
   }
 });
 
-test('iMovie endpoint checks session, admin and owner before proxying ZIP bytes', async () => {
+test('Resolve endpoint checks session, admin and owner before proxying ZIP bytes', async () => {
   const { Threads } = await import('./threads.js');
   const id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
   const dir = mkdtempSync(join(tmpdir(), 'kit-http-'));
@@ -133,25 +133,15 @@ test('iMovie endpoint checks session, admin and owner before proxying ZIP bytes'
   let builds = 0;
   const launcher = createServer((req, res) => {
     assert.equal(req.headers.authorization, 'Bearer launcher-secret');
-    if (req.url?.includes('/imovie-kit')) {
-      builds++;
-      assert.equal(req.method, 'POST');
-      res
-        .writeHead(200, {
-          'Content-Type': 'application/zip',
-          'Content-Disposition': 'attachment; filename="kit.zip"',
-        })
-        .end('ZIP');
-    } else if (req.url?.includes('/imovie-library-download')) {
+    if (req.url?.includes('/resolve-download')) {
       builds++;
       res
         .writeHead(200, {
           'Content-Type': 'application/zip',
-          'Content-Disposition':
-            'attachment; filename="edit.imovielibrary.zip"',
+          'Content-Disposition': 'attachment; filename="edit.resolve.zip"',
         })
         .end('LIBRARY-ZIP');
-    } else if (req.url?.includes('/imovie-library')) {
+    } else if (req.url?.includes('/resolve')) {
       builds++;
       res.setHeader('Content-Type', 'application/json');
       res.end(
@@ -188,22 +178,7 @@ test('iMovie endpoint checks session, admin and owner before proxying ZIP bytes'
       if (Date.now() > until) throw Error('Server did not start');
       await new Promise((r) => setTimeout(r, 25));
     }
-    const kit = `/edits/${id}/imovie-kit?revision=1`;
-    assert.equal((await fetch(url + kit)).status, 401);
-    const request = (user: string) =>
-      fetch(url + kit, { headers: { Authorization: 'Bearer ' + user } });
-    assert.equal((await request('viewer')).status, 403);
-    assert.equal((await request('other-admin')).status, 404);
-    assert.equal(builds, 0);
-    const response = await request('owner');
-    assert.equal(response.status, 200);
-    assert.equal(await response.text(), 'ZIP');
-    assert.equal(
-      response.headers.get('content-disposition'),
-      'attachment; filename="kit.zip"',
-    );
-    assert.equal(builds, 1);
-    const library = `/edits/${id}/imovie-library?revision=1`;
+    const library = `/edits/${id}/resolve?revision=1`;
     const libRequest = (user: string, method = 'GET') =>
       fetch(url + library, {
         method,
@@ -216,17 +191,14 @@ test('iMovie endpoint checks session, admin and owner before proxying ZIP bytes'
     assert.equal((await fetch(url + library)).status, 401);
     assert.equal((await libRequest('viewer', 'POST')).status, 403);
     assert.equal((await libRequest('other-admin', 'POST')).status, 404);
-    assert.equal(builds, 1);
+    assert.equal(builds, 0);
     assert.equal((await (await libRequest('owner')).json()).state, 'idle');
     assert.equal(
       (await (await libRequest('owner', 'POST')).json()).state,
       'queued',
     );
-    assert.equal(builds, 3);
-    const download = library.replace(
-      '/imovie-library?',
-      '/imovie-library-download?',
-    );
+    assert.equal(builds, 2);
+    const download = library.replace('/resolve?', '/resolve-download?');
     assert.equal((await fetch(url + download)).status, 401);
     assert.equal(
       (
@@ -244,17 +216,14 @@ test('iMovie endpoint checks session, admin and owner before proxying ZIP bytes'
       ).status,
       404,
     );
-    assert.equal(builds, 3);
+    assert.equal(builds, 2);
     const archive = await fetch(url + download, {
       headers: { Authorization: 'Bearer owner' },
     });
     assert.equal(archive.status, 200);
     assert.equal(await archive.text(), 'LIBRARY-ZIP');
-    assert.match(
-      archive.headers.get('content-disposition')!,
-      /imovielibrary.zip/,
-    );
-    assert.equal(builds, 4);
+    assert.match(archive.headers.get('content-disposition')!, /resolve.zip/);
+    assert.equal(builds, 3);
   } finally {
     child.kill();
     await closed;

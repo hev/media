@@ -42,28 +42,7 @@ completion note. It can be revised after the queue is idle. There is a draft-onl
 queue, schedule, or arbitrary-command endpoint. Output files and R2 uploads are
 retained for review; this service does not implement retention deletion.
 
-## iMovie handoff
 
-`GET /jobs/:id/imovie-kit?revision=N` builds a private ZIP, cached per revision.
-The admin chat proxy also supplies unused shortlist and same-query smart-search
-video candidates with a private POST. Four unused extras are included, in shortlist then search rank order. Builds
-coalesce concurrently and only atomically publish a completed ZIP. No Buffer
-operation is involved. Requires host `ffmpeg`, `ffprobe`, and `/usr/bin/zip`.
+## Resolve handoff
 
-Each numbered shot retains native geometry, cadence and audio, with up to one
-second of handles on either side. Keyframe-aligned ranges are stream copied; arbitrary boundaries are decoded
-and encoded at H.264 CRF 16 with PCM audio. `kit.json` records exact source and
-handle ranges; `project: null` reserves a future native-project addition.
-`cut-N.json` is captured before revisions advance and after renders; historical
-revisions without a saved cut fail rather than using a later timeline. Kits
-larger than 1.5 GB fail explicitly. Missing extras or inaccessible sources also
-fail explicitly; partial ZIPs are never served.
-
-Optional worker `inspection.json` supplies an asset-ID map or `clips` array with
-`assetId` and `bestRange: {in,out}` (seconds). Extras use these inspected ranges,
-capped at twenty seconds; otherwise they use the middle fifteen seconds.
-
-Native libraries are available through `POST /jobs/:id/imovie-library?revision=N`,
-with inert GET status and a ready-only `/imovie-library-download` stream. See
-[the native handoff workflow](IMOVIE-LIBRARY.md). The browser's Download for
-iMovie action delivers the library ZIP; users unzip and double-click it.
+Use **Open in Resolve** on a rendered revision. The card tracks the queued/building/ready/failed state. Copy `resolve-open JOB REVISION` on the laptop (install `hev-edit/bin/resolve-open`), or use **Download for Resolve**. Unzip into `~/Movies/hev-video/`, then File → Import Project → the `.drp`. Import `captions.srt` as subtitles; titles and captions remain editable text. The FCPXML is a timeline fallback. Original media and up to four unused theme clips travel with the project; extras are in an Extras bin. No publishing occurs.

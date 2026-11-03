@@ -1,0 +1,32 @@
+#!/bin/sh
+set -eu
+usage() { echo 'Usage: resolve-open <job-id> [revision]' >&2; exit 2; }
+[ "$#" -ge 1 ] && [ "$#" -le 2 ] || usage
+job=$1
+case "$job" in *[!a-f0-9-]*|'') usage;; esac
+[ "${#job}" -eq 36 ] || usage
+host=${RESOLVE_HOST:-mini}
+case "$host" in *[!a-zA-Z0-9._-]*|''|-*) usage;; esac
+revision=${2:-}
+if [ -z "$revision" ]; then
+ revision=$(ssh "$host" "cat dispatch/edits/$job/job.json" | sed -n 's/.*"revision"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' | head -n 1)
+fi
+case "$revision" in *[!0-9]*|''|0|0*) usage;; esac
+metadata=$(ssh "$host" "cat dispatch/edits/$job/resolve/state-r$revision.json")
+case "$metadata" in *'"state":"ready"'*) ;; *) echo 'Resolve project is not ready on the mini.' >&2; exit 1;; esac
+remote=$(printf '%s' "$metadata" | sed -n 's/.*"zip":"\([^"]*\)".*/\1/p')
+case "$remote" in /Users/hev/dispatch/edits/"$job"/resolve/*.zip) ;; *) echo 'Invalid project path.' >&2; exit 1;; esac
+case "$remote" in *[!a-zA-Z0-9/._-]*) echo 'Invalid project path.' >&2; exit 1;; esac
+name=$(basename "$remote" .zip)
+folder=$HOME/Movies/hev-video/$name
+if [ ! -d "$folder" ]; then
+ mkdir -p "$HOME/Movies/hev-video"
+ archive=$HOME/Movies/hev-video/.$name.zip
+ trap 'rm -f "$archive.download"' 0 HUP INT TERM
+ scp "$host:$remote" "$archive.download"
+ mv "$archive.download" "$archive"
+ unzip -q "$archive" -d "$HOME/Movies/hev-video"
+ rm "$archive"
+fi
+open "$folder"
+printf 'In Resolve: File > Import Project > %s/%s.drp (or File > Import > Timeline > timeline.fcpxml)\n' "$folder" "$name"

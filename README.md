@@ -123,3 +123,7 @@ Read more about translations [here](https://docs.immich.app/developer/translatio
 <a href="https://github.com/immich-app/immich/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=immich-app/immich" width="100%"/>
 </a>
+
+## Resolve handoff
+
+Use **Open in Resolve** on a rendered revision. The card tracks the queued/building/ready/failed state. Copy `resolve-open JOB REVISION` on the laptop (install `hev-edit/bin/resolve-open`), or use **Download for Resolve**. Unzip into `~/Movies/hev-video/`, then File → Import Project → the `.drp`. Import `captions.srt` as subtitles; titles and captions remain editable text. The FCPXML is a timeline fallback. Original media and up to four unused theme clips travel with the project; extras are in an Extras bin. No publishing occurs.
