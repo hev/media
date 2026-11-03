@@ -322,7 +322,8 @@
             break;
           }
           case 'tool': {
-            const steps = (messages[index].steps ??= []);
+            messages[index].steps ??= [];
+            const steps = messages[index].steps!;
             const existing = steps.findIndex((s) => s.id === event.step.id);
             if (existing === -1) steps.push(event.step);
             else steps[existing] = event.step;

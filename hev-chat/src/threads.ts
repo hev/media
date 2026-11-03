@@ -81,7 +81,12 @@ export class Threads {
     // Re-read after async launcher requests so polling never overwrites a newer setup/title/turn.
     const current = this.get(owner, id);
     if (!current) return;
-    const workers = { ...current.workers, ...updates };
+    // Viewing a legacy thread must not mutate it when no new worker has reported.
+    const reported = Object.fromEntries(
+      Object.entries(updates).filter(([, steps]) => steps.length > 0),
+    );
+    if (Object.keys(reported).length === 0) return;
+    const workers = { ...current.workers, ...reported };
     if (JSON.stringify(workers) === JSON.stringify(current.workers)) return;
     current.workers = workers;
     this.save(owner, current);

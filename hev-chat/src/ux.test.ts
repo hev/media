@@ -131,3 +131,12 @@ test('search steps, worker history and manual titles survive reopening', async (
   assert.equal(db.get('a', thread.id)?.autoTitle, false);
   db.db.close();
 });
+
+test('viewing legacy edits with no progress does not mutate the thread', () => {
+  const db = new Threads(':memory:');
+  const thread = db.create('owner', 'Existing title');
+  const before = JSON.stringify(db.get('owner', thread.id));
+  db.recordWorkers('owner', thread.id, { oldJob: [] });
+  assert.equal(JSON.stringify(db.get('owner', thread.id)), before);
+  db.db.close();
+});
