@@ -1,4 +1,9 @@
-import { ResolveQueue, buildResolve, downloadResolve } from "./resolve.mjs";
+import {
+  ResolveQueue,
+  buildResolve,
+  downloadResolve,
+  publicResolve,
+} from "./resolve.mjs";
 import { createServer } from "node:http";
 import {
   copyFile,
@@ -370,14 +375,7 @@ createServer(async (req, res) => {
           ? await libraries.request(job, revision, input.candidates ?? [])
           : await libraries.status(job, revision);
       res.setHeader("Content-Type", "application/json");
-      res.end(
-        JSON.stringify({
-          state: item.state,
-          message: item.message,
-          command: item.command,
-          progress: item.progress ?? [],
-        }),
-      );
+      res.end(JSON.stringify(publicResolve(item)));
       return;
     }
     if (req.method === "GET" && job) {
