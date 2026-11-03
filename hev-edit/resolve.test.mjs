@@ -80,6 +80,11 @@ test("failed and interrupted builds require an explicit retry", async (t) => {
   await q.request(job, 1);
   await q.drain();
   assert.equal(count, 2);
+  assert.equal(
+    (await q.status(job, 1)).progress.filter((s) => s.stage === "failed")
+      .length,
+    2,
+  );
   await q.persist({ ...job, revision: 2, state: "building" });
   const restored = new ResolveQueue({
     root,

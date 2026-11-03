@@ -192,6 +192,7 @@ export class ResolveQueue {
         id: job.id,
         revision,
         candidates,
+        progress: existing.progress ?? [],
         state: "queued",
         message: "Queued for Resolve",
       };
