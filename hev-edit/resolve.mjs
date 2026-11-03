@@ -294,6 +294,10 @@ export async function buildResolve({
   const invoke = async (exe, args) =>
     run(exe, args, { cwd: out, timeout: 180000, maxBuffer: 4 * 1024 * 1024 });
   await invoke("python3", [
+    fileURLToPath(new URL("./resolve-fit.py", import.meta.url)),
+    out,
+  ]);
+  await invoke("python3", [
     path.join(kit, "cut.py"),
     "timeline",
     path.join(out, "cut.json"),
