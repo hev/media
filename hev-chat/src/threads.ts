@@ -1,11 +1,23 @@
 import type { EditSetup } from './ux.js';
 import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
+export type ToolStep = {
+  id: string;
+  name: string;
+  input: Record<string, unknown>;
+  state: 'running' | 'done' | 'failed';
+  startedAt: number;
+  elapsedMs?: number;
+  before?: number;
+  after?: number;
+  shown?: number;
+};
 export type Turn = {
   role: 'user' | 'assistant';
   content: string;
   assets: any[];
   jobs?: string[];
+  steps?: ToolStep[];
 };
 export type Thread = {
   id: string;
@@ -13,6 +25,9 @@ export type Thread = {
   messages: Turn[];
   selected: any[];
   smartQuery?: string;
+  autoTitle?: boolean;
+  setupAfter?: number;
+  workers?: Record<string, unknown[]>;
   setup?: EditSetup;
   jobs: string[];
   updatedAt: number;
@@ -51,6 +66,7 @@ export class Threads {
     const t: Thread = {
       id: randomUUID(),
       title,
+      autoTitle: title === 'New thread',
       messages: [],
       selected: [],
       jobs: [],
@@ -60,6 +76,15 @@ export class Threads {
       .prepare('INSERT INTO threads VALUES(?,?,?)')
       .run(t.id, owner, JSON.stringify(t));
     return t;
+  }
+  recordWorkers(owner: string, id: string, updates: Record<string, unknown[]>) {
+    // Re-read after async launcher requests so polling never overwrites a newer setup/title/turn.
+    const current = this.get(owner, id);
+    if (!current) return;
+    const workers = { ...current.workers, ...updates };
+    if (JSON.stringify(workers) === JSON.stringify(current.workers)) return;
+    current.workers = workers;
+    this.save(owner, current);
   }
   delete(owner: string, id: string) {
     this.db

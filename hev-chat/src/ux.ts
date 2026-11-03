@@ -79,3 +79,34 @@ export function relevantAssets(assets: any[]) {
     })
     .slice(0, 24);
 }
+
+// Deterministic subject extraction; no extra inference call or private metadata.
+export function videoTitle(value: string) {
+  const subject = value
+    .split(/[.!?\n]/, 1)[0]
+    .replace(/^\/(?:search|edit)\s*/i, '')
+    .replace(
+      /^(?:search(?: the library)?(?: for)?|find|show me|make|create|a highlight reel of)\s+/i,
+      '',
+    )
+    .replace(/\b(?:videos?|photos?|footage|search|thread|please)\b/gi, '')
+    .replace(/\b(?:a|an|the)\s+(?:edit|reel)\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .replace(/[.!?]+$/, '')
+    .trim();
+  if (!subject) return 'My highlights';
+  const title = /\b(highlights|reel|moments)\b/i.test(subject)
+    ? subject
+    : subject + ' highlights';
+  return (title[0].toUpperCase() + title.slice(1)).slice(0, 80);
+}
+export function pendingConfirmation(
+  thread: { setup?: EditSetup; setupAfter?: number; messages: unknown[] },
+  value: string,
+) {
+  return (
+    !!thread.setup &&
+    thread.setupAfter === thread.messages.length &&
+    isConfirmation(value)
+  );
+}

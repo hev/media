@@ -109,6 +109,15 @@ export class ResolveQueue {
     return path.join(this.root, job.id, "resolve", `state-r${rev}.json`);
   }
   async persist(item) {
+    if (item.progress?.at(-1)?.stage !== item.state)
+      (item.progress ??= []).push({
+        revision: item.revision,
+        stage: item.state,
+        message: item.message,
+        at: Date.now(),
+        agent: "Resolve builder",
+        model: "native Python / Resolve API",
+      });
     const file = this.file(item, item.revision);
     await mkdir(path.dirname(file), { recursive: true, mode: 0o700 });
     await writeFile(file + ".tmp", JSON.stringify(item), { mode: 0o600 });
