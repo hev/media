@@ -163,7 +163,7 @@ export class ResolveQueue {
     if (this.requests.has(key)) return this.requests.get(key);
     const pending = (async () => {
       const existing = await this.status(job, revision);
-      if (existing.state !== "idle") return existing;
+      if (!["idle", "failed"].includes(existing.state)) return existing;
       const item = {
         id: job.id,
         revision,
@@ -251,7 +251,7 @@ export async function buildResolve({
       throw Error("Source outside job");
     if (copies.has(source)) return copies.get(source);
     const rel = `media/${String(copies.size + 1).padStart(2, "0")}_${path.basename(source).replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-    await copyFile(source, path.join(out, rel), constants.COPYFILE_FICLONE);
+    await cloneOriginal(source, path.join(out, rel));
     copies.set(source, rel);
     return rel;
   }
@@ -353,4 +353,9 @@ export async function downloadResolve(queue, job, revision, res) {
     "Content-Disposition": `attachment; filename="${path.basename(item.zip)}"`,
   });
   await pipeline(createReadStream(item.zip), res);
+}
+
+export async function cloneOriginal(source, dest) {
+  await copyFile(source, dest + ".tmp", constants.COPYFILE_FICLONE);
+  await rename(dest + ".tmp", dest);
 }
