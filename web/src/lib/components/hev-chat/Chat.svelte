@@ -255,7 +255,7 @@
     timer = setInterval(() => void refreshEdits(), 3000);
   });
   onDestroy(() => clearInterval(timer));
-  type Photo = { id: string; originalFileName?: string; type?: string; duration?: string };
+  type Photo = { id: string; originalFileName?: string; type?: string; duration?: number | null };
   type ToolStep = {
     id: string;
     name: string;
