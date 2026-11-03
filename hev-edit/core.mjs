@@ -85,6 +85,14 @@ const next = {
 export function transition(job, state, note) {
   if (!next[job.state]?.includes(state)) throw Error("Invalid job transition");
   Object.assign(job, { state, note, updatedAt: new Date().toISOString() });
+  (job.progress ??= []).push({
+    revision: job.revision,
+    stage: state,
+    message: note,
+    at: Date.now(),
+    agent: "codex",
+    model: "gpt-6.1-sol",
+  });
 }
 export class Queue {
   jobs = new Map();
@@ -118,7 +126,7 @@ export class Queue {
           await this.save(job);
         };
         try {
-          await update("editing", "Editor is reviewing the footage");
+          await update("editing", "Preparing the edit worker");
           await this.run(job, update);
         } catch {
           if (next[job.state]?.includes("failed"))
@@ -144,6 +152,17 @@ export function publicJob(job) {
     updatedAt,
     bufferUrl,
     threadId: job.input.threadId,
+    progress: job.progress ?? [],
+    setup: {
+      aspectRatio: job.input.aspectRatio,
+      length: job.input.length,
+      captions: job.input.captions,
+      titles: job.input.titles,
+      music: job.input.music,
+    },
+    assets: (job.input.assets ?? []).map((a) => ({ id: a.id })),
+    timeline: job.timeline,
+    duration: job.duration,
     revisions: (
       job.revisions ??
       (job.mediaUrl
@@ -151,6 +170,8 @@ export function publicJob(job) {
         : [])
     )?.map((r) => ({
       revision: r.revision,
+      timeline: r.timeline,
+      duration: r.duration,
       bufferUrl: r.bufferUrl,
       preview: `/hev-chat/edits/${id}/preview?revision=${r.revision}`,
     })),

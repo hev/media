@@ -190,7 +190,11 @@ export async function runTool(
         `Checking relevance of ${items.length} ${type === 'VIDEO' ? 'clips' : 'photos and videos'}…`,
       );
       const assets = await score(query, items, options);
-      return { ...result, assets: { ...result.assets, items: assets } };
+      return {
+        ...result,
+        before: result.assets.items.length,
+        assets: { ...result.assets, items: assets },
+      };
     }
     case 'metadata':
       return api.searchAssets(
@@ -228,11 +232,14 @@ export function summarizeResult(name: string, result: any) {
         : undefined;
   if (assets)
     return {
+      before: result.before ?? assets.length,
+      after: assets.length,
       assets: assets.map((asset: any) => ({
         id: asset.id,
         originalFileName: asset.originalFileName,
         localDateTime: asset.localDateTime,
         type: asset.type,
+        duration: asset.duration,
       })),
     };
   if (name === 'person')

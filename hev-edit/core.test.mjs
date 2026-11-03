@@ -145,3 +145,28 @@ test("ambiguous publish failure cannot silently create another draft", async () 
   await assert.rejects(publishRevision(job, 1, async () => {}, draft));
   assert.equal(calls, 1);
 });
+
+test("public progress preserves stage history and safe timeline without source paths", () => {
+  const job = {
+    id: "a",
+    state: "queued",
+    revision: 1,
+    input: {
+      assets: [{ id: "clip", originalPath: "/external/private.mp4" }],
+      aspectRatio: "1:1",
+      length: 6,
+      captions: false,
+    },
+  };
+  transition(job, "editing", "Worker dispatched");
+  transition(job, "rendered", "Ready locally");
+  job.timeline = [{ id: "clip", duration: 6 }];
+  job.duration = 6;
+  const result = publicJob(job);
+  assert.equal(result.progress.length, 2);
+  assert.equal(result.progress[0].model, "gpt-6.1-sol");
+  assert.equal(result.progress[1].stage, "rendered");
+  assert.equal(result.duration, 6);
+  assert.equal(result.assets[0].id, "clip");
+  assert.ok(!JSON.stringify(result).includes("/external/"));
+});

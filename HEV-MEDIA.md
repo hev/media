@@ -128,3 +128,26 @@ actual output dimensions; Resolve reads those same cut dimensions.
 
 Rendering and revision previews stay local. Only the explicit Publish action
 uploads the selected revision and creates a Buffer draft for human review.
+
+## Chat inspection and worker progress
+
+Chat uses a fullscreen thread / conversation / edit layout; Edit details opens
+as a sheet on narrow screens. Assistant Markdown uses an allowlist of text,
+bold, inline code, lists and HTTP(S)/mailto links. It never renders raw HTML or
+loads Markdown images. Tool steps persist executed inputs, candidate/filtered/
+displayed counts and elapsed time with each assistant turn.
+
+New threads have an explicit automatic-title marker. Search subjects become
+video-style titles; edit setup can refine them until a manual rename. Legacy
+threads are never automatically retitled. Natural assent only confirms the
+latest pending setup; an intervening conversation turn consumes that scope.
+
+The edit launcher persists worker state changes and reads each revision's
+`progress-N.json` written atomically by the worker. Only recognized stages are
+shown (reviewing, transcribing, cutting, rendering, reviewing frames); raw log
+text, paths and arbitrary worker messages never enter the browser. The UI shows
+the actual agent/model, elapsed time and finish/failure in the transcript and
+sidebar. Resolve builds report their actual native builder states separately.
+Polling copies histories into the thread without overwriting newer turns or
+settings. Rendered revisions expose safe source IDs, cut durations and measured
+output duration for the edit summary.

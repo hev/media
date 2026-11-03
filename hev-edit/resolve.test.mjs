@@ -48,7 +48,14 @@ test("queue coalesces, serializes revisions, caches ready and persists states", 
   });
   await restored.restore([job]);
   assert.equal((await restored.status(job, 2)).state, "ready");
-  assert.equal(JSON.parse(await readFile(q.file(job, 1))).state, "ready");
+  const saved = JSON.parse(await readFile(q.file(job, 1)));
+  assert.equal(saved.state, "ready");
+  assert.deepEqual(
+    saved.progress.map((s) => s.stage),
+    ["queued", "building", "ready"],
+  );
+  assert.equal(saved.progress[1].agent, "Resolve builder");
+  assert.ok(saved.progress.every((s) => Number.isFinite(s.at)));
 });
 test("failed and interrupted builds require an explicit retry", async (t) => {
   const root = await fixture(t);

@@ -140,12 +140,15 @@ test('mutation names and extra or mistyped arguments cannot reach the SDK', asyn
       exifInfo: { gps: 1 },
     }),
     {
+      before: 1,
+      after: 1,
       assets: [
         {
           id: 'a',
           originalFileName: undefined,
           localDateTime: undefined,
           type: undefined,
+          duration: undefined,
         },
       ],
     },

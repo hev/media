@@ -1,5 +1,16 @@
 <script lang="ts">
-  import UserPageLayout from '$lib/components/layouts/UserPageLayout.svelte';
+  import Markdown from './Markdown.svelte';
+  import WorkerProgress, { type Progress } from './WorkerProgress.svelte';
+  import {
+    mdiPencil,
+    mdiDelete,
+    mdiClose,
+    mdiMenu,
+    mdiArrowLeft,
+    mdiMovieOpenOutline,
+    mdiEyeOutline,
+    mdiContentCopy,
+  } from '@mdi/js';
   import Portal from '$lib/elements/Portal.svelte';
   import { assetViewerManager } from '$lib/managers/asset-viewer-manager.svelte';
   import { authManager } from '$lib/managers/auth-manager.svelte';
@@ -9,7 +20,13 @@
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
 
-  type Revision = { revision: number; preview: string; bufferUrl?: string };
+  type Revision = {
+    revision: number;
+    preview: string;
+    bufferUrl?: string;
+    duration?: number;
+    timeline?: { id?: string; duration: number }[];
+  };
   type Thread = { id: string; title: string; messages: Message[]; selected: Photo[]; jobs: string[]; setup?: Setup };
   type Setup = {
     aspectRatio: string;
@@ -89,6 +106,7 @@
   let threads = $state<Thread[]>([]);
   let current = $state<Thread>();
   let drawer = $state(false);
+  let editDrawer = $state(false);
   let selected = $state<string[]>([]);
   let revisions = $state<Record<string, number>>({});
   let log: HTMLDivElement;
@@ -139,7 +157,8 @@
   async function rename(t: Thread) {
     const title = prompt('Thread name', t.title);
     if (title) {
-      await api('/threads/' + t.id, 'PATCH', { title });
+      const updated = await api('/threads/' + t.id, 'PATCH', { title });
+      if (current?.id === t.id) current = updated;
       await list();
     }
   }
@@ -165,7 +184,7 @@
       await refreshEdits();
     }
   }
-  type LibraryBuild = { state: string; message: string; command?: string };
+  type LibraryBuild = { state: string; message: string; command?: string; progress?: Progress[] };
   let libraryBuilds = $state<Record<string, LibraryBuild>>({});
   let libraryPending = $state<Record<string, boolean>>({});
   async function resolve(edit: Edit) {
@@ -203,6 +222,11 @@
   }
   type Edit = {
     revisions?: Revision[];
+    progress?: Progress[];
+    assets?: Photo[];
+    setup?: Setup;
+    timeline?: { id?: string; duration: number }[];
+    duration?: number;
     threadId?: string;
     id: string;
     state: string;
@@ -231,8 +255,19 @@
     timer = setInterval(() => void refreshEdits(), 3000);
   });
   onDestroy(() => clearInterval(timer));
-  type Photo = { id: string; originalFileName?: string };
-  type Message = { role: 'user' | 'assistant'; content: string; assets: Photo[]; jobs?: string[] };
+  type Photo = { id: string; originalFileName?: string; type?: string; duration?: string };
+  type ToolStep = {
+    id: string;
+    name: string;
+    input: Record<string, unknown>;
+    state: string;
+    startedAt: number;
+    elapsedMs?: number;
+    before?: number;
+    after?: number;
+    shown?: number;
+  };
+  type Message = { role: 'user' | 'assistant'; content: string; assets: Photo[]; jobs?: string[]; steps?: ToolStep[] };
   let messages = $state<Message[]>([]);
   let question = $state('');
   let busy = $state(false);
@@ -253,7 +288,7 @@
       await command(slash[1]);
       return;
     }
-    if (setup) await saveSetup();
+    // Saving a setup is an explicit new pending question; sending an unrelated turn must not re-arm it.
     status = 'Sending request…';
     error = '';
     messages.push({ role: 'user', content: question.trim(), assets: [] });
@@ -284,6 +319,13 @@
         switch (event.type) {
           case 'status': {
             status = event.message;
+            break;
+          }
+          case 'tool': {
+            const steps = (messages[index].steps ??= []);
+            const existing = steps.findIndex((s) => s.id === event.step.id);
+            if (existing === -1) steps.push(event.step);
+            else steps[existing] = event.step;
             break;
           }
           case 'setup': {
@@ -357,16 +399,55 @@
   const cursor = $derived({ current: assetViewerManager.asset! });
 </script>
 
-<UserPageLayout title="Chat">
-  <div class="relative flex h-full min-h-0 dark:text-immich-dark-fg">
+<svelte:window
+  onkeydown={(event) => {
+    if (event.key === 'Escape') {
+      drawer = false;
+      editDrawer = false;
+    }
+  }}
+/>
+
+<div
+  class="chat-shell fixed inset-0 z-30 flex flex-col bg-immich-bg text-immich-fg dark:bg-immich-dark-bg dark:text-immich-dark-fg"
+>
+  <header class="flex shrink-0 items-center justify-between gap-2 border-b px-3 py-2">
+    <a href="/photos" title="Back to library" aria-label="Back to library" class="icon-action"
+      ><svg viewBox="0 0 24 24"><path d={mdiArrowLeft} /></svg></a
+    >
+    <button
+      type="button"
+      class="icon-action md:hidden"
+      aria-label="Show threads"
+      title="Show threads"
+      onclick={() => (drawer = !drawer)}><svg viewBox="0 0 24 24"><path d={mdiMenu} /></svg></button
+    >
+    <h1 class="min-w-0 flex-1 truncate font-semibold">{current?.title ?? 'hev media'}</h1>
+    <button
+      type="button"
+      class="icon-action lg:hidden"
+      aria-label="Show edit details"
+      title="Show edit details"
+      onclick={() => (editDrawer = !editDrawer)}><svg viewBox="0 0 24 24"><path d={mdiMovieOpenOutline} /></svg></button
+    >
+  </header>
+  <div class="relative flex min-h-0 flex-1 dark:text-immich-dark-fg">
     <aside
       class={`${drawer ? 'block' : 'hidden'} w-56 shrink-0 overflow-y-auto border-r p-3 max-md:absolute max-md:inset-y-0 max-md:left-0 max-md:z-20 max-md:bg-immich-bg md:block max-md:dark:bg-immich-dark-bg`}
       aria-label="Threads"
     >
-      <button type="button" class="mb-2 block md:hidden" onclick={() => (drawer = false)}>Close threads</button>
+      <button
+        type="button"
+        class="icon-action md:hidden"
+        aria-label="Close threads"
+        title="Close threads"
+        onclick={() => (drawer = false)}><svg viewBox="0 0 24 24"><path d={mdiClose} /></svg></button
+      >
       <button type="button" class="mb-4 rounded-xl border p-3" onclick={newThread} disabled={busy}>New thread</button>
       {#each threads as thread (thread.id)}
-        <div class="mb-3 rounded-xl p-2" class:bg-immich-gray={current?.id === thread.id}>
+        <div
+          class={`mb-3 rounded-xl p-2 ${current?.id === thread.id ? 'bg-immich-gray dark:bg-immich-dark-gray' : ''}`}
+        >
           <a
             class="block wrap-break-word underline"
             href={`/chat/${thread.id}`}
@@ -374,11 +455,19 @@
               if (busy) e.preventDefault();
             }}>{thread.title}</a
           >
-          <button type="button" class="mr-3 text-sm" onclick={() => rename(thread)}>Rename</button><button
+          <button
             type="button"
-            class="text-sm"
+            class="icon-action"
+            aria-label={`Rename ${thread.title}`}
+            title="Rename video"
+            onclick={() => rename(thread)}><svg viewBox="0 0 24 24"><path d={mdiPencil} /></svg></button
+          ><button
+            type="button"
+            class="icon-action"
+            title="Delete thread"
+            aria-label={`Delete ${thread.title}`}
             disabled={busy}
-            onclick={() => remove(thread)}>Delete</button
+            onclick={() => remove(thread)}><svg viewBox="0 0 24 24"><path d={mdiDelete} /></svg></button
           >
         </div>
       {/each}
@@ -391,7 +480,6 @@
       </nav>
     </aside>
     <main class="flex min-w-0 flex-1 flex-col px-3">
-      <button type="button" class="self-start p-2 md:hidden" onclick={() => (drawer = !drawer)}>Threads</button>
       <p class="py-2 text-sm opacity-70">
         Find moments, select photos and videos, edit and revise. Publish saves a Buffer draft for review.
       </p>
@@ -406,7 +494,7 @@
       {#if setup}
         <form
           aria-label="Edit setup"
-          class="my-2 grid grid-cols-2 gap-2 rounded-xl border p-3"
+          class="my-2 grid max-h-[45dvh] shrink-0 grid-cols-2 gap-2 overflow-y-auto rounded-xl border p-3"
           onsubmit={async (e) => {
             e.preventDefault();
             await saveSetup();
@@ -478,10 +566,31 @@
         {#each messages as message, index (index)}
           <section
             aria-label={message.role === 'user' ? 'You' : 'hev media'}
-            class="mb-4 rounded-2xl bg-immich-gray p-4 dark:bg-immich-dark-gray"
+            class="message mb-4 rounded-2xl p-4"
+            class:user-message={message.role === 'user'}
+            class:assistant-message={message.role === 'assistant'}
           >
             <p class="mb-2 font-semibold">{message.role === 'user' ? 'You' : 'hev media'}</p>
-            <p class="whitespace-pre-wrap">{message.content}</p>
+            {#each message.steps ?? [] as step (step.id)}
+              <details class="my-2 rounded-xl border p-3 text-sm">
+                <summary
+                  >{step.name} · {step.state}{#if step.before !== undefined}
+                    · {step.before} → {step.after} matches{/if}{#if step.elapsedMs !== undefined}
+                    · {(step.elapsedMs / 1000).toFixed(1)}s{/if}</summary
+                >
+                <dl class="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+                  {#each Object.entries(step.input) as [key, value] (key)}<dt class="opacity-70">{key}</dt>
+                    <dd class="wrap-anywhere">{typeof value === 'string' ? value : JSON.stringify(value)}</dd>{/each}
+                </dl>
+                {#if step.shown !== undefined}<p class="mt-2">
+                    {step.shown} shown after deduplication and thread limit
+                  </p>{/if}
+              </details>
+            {/each}
+            {#if message.role === 'assistant'}<Markdown
+                content={message.content}
+                streaming={busy && index === messages.length - 1}
+              />{:else}<p class="whitespace-pre-wrap">{message.content}</p>{/if}
             {#if message.assets.length}
               <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {#each message.assets.slice(0, visible[index] ?? 12) as asset (asset.id)}
@@ -498,7 +607,14 @@
                         alt={asset.originalFileName ?? 'Search result'}
                         loading="lazy"
                       /></label
-                    ><button type="button" class="text-sm underline" onclick={() => openPhoto(asset.id)}>Open</button>
+                    ><button
+                      type="button"
+                      class="icon-action"
+                      title="Open asset"
+                      aria-label="Open asset"
+                      onclick={() => openPhoto(asset.id)}
+                      ><svg viewBox="0 0 24 24"><path d={mdiEyeOutline} /></svg></button
+                    >
                   </div>
                 {/each}
               </div>
@@ -522,9 +638,14 @@
               {@const edit = edits.find((j) => j.id === jobId)}
               {#if edit}
                 {@const revision = edit.revisions?.find((r) => r.revision === (revisions[edit.id] ?? edit.revision))}
-                <article id={`edit-${edit.id}`} aria-label={`Edit ${edit.id}`} class="mt-3 rounded-xl border p-3">
+                <article
+                  id={`edit-${edit.id}`}
+                  aria-label={`Edit ${edit.id}`}
+                  class="mt-3 max-w-full min-w-0 overflow-hidden rounded-xl border p-3"
+                >
                   <p>Reel · revision {edit.revision} · {edit.state}</p>
                   <p role="status">{edit.note}</p>
+                  <WorkerProgress steps={edit.progress} state={edit.state} />
                   {#if edit.revisions?.length}<label
                       >Revision <select
                         value={revisions[edit.id] ?? edit.revision}
@@ -541,7 +662,9 @@
                     >{/if}
                   <button
                     type="button"
-                    class="mr-3 underline"
+                    class="icon-action"
+                    title="Revise edit"
+                    aria-label="Revise edit"
                     disabled={busy || ['queued', 'editing'].includes(edit.state)}
                     onclick={() => revise(edit)}>Revise</button
                   >
@@ -557,6 +680,7 @@
                       >{/if}
                     {#if library}
                       <p role="status" class="mt-2">{library.message}</p>
+                      <WorkerProgress steps={library.progress} state={library.state} />
                       {#if library.state === 'ready' && library.command}
                         <a
                           class="text-on-primary mt-2 inline-block rounded-lg bg-primary p-2"
@@ -574,12 +698,15 @@
                             aria-label="Resolve laptop command"
                             readonly
                             value={library.command}
-                            class="w-full rounded-sm border p-2 font-mono"
+                            class="w-full max-w-full min-w-0 rounded-sm border p-2 font-mono"
                           />
                           <button
                             type="button"
-                            class="underline"
-                            onclick={() => navigator.clipboard.writeText(library.command!)}>Copy command</button
+                            class="icon-action"
+                            title="Copy command"
+                            aria-label="Copy command"
+                            onclick={() => navigator.clipboard.writeText(library.command!)}
+                            ><svg viewBox="0 0 24 24"><path d={mdiContentCopy} /></svg></button
                           >
                         </details>
                       {/if}
@@ -640,8 +767,99 @@
         >
       </form>
     </main>
+    <aside
+      aria-label="Edit details"
+      class={`${editDrawer ? 'block' : 'hidden'} edit-sidebar w-72 shrink-0 overflow-y-auto border-l bg-immich-bg p-3 max-lg:absolute max-lg:inset-y-0 max-lg:right-0 max-lg:z-20 max-lg:w-[min(340px,100%)] lg:block dark:bg-immich-dark-bg`}
+    >
+      <button
+        type="button"
+        class="icon-action lg:hidden"
+        title="Close edit details"
+        aria-label="Close edit details"
+        onclick={() => (editDrawer = false)}><svg viewBox="0 0 24 24"><path d={mdiClose} /></svg></button
+      >
+      <h2 class="mb-3 font-semibold">Your edit</h2>
+      {#if edits.length === 0 && !setup}<p class="text-sm opacity-70">
+          Select moments from the conversation, then choose Edit setup to begin.
+        </p>{/if}
+      {#each edits as edit (edit.id)}
+        {@const settings = edit.setup}
+        {@const clips = edit.assets ?? []}
+        {@const chosen = edit.revisions?.find((r) => r.revision === (revisions[edit.id] ?? edit.revision))}
+        {@const timeline = chosen?.timeline ?? edit.timeline}
+        {@const duration = chosen?.duration ?? edit.duration}
+        {@const library = libraryBuilds[edit.id + ':' + (revisions[edit.id] ?? edit.revision)]}
+        <section class="mb-5" aria-label="Edit summary">
+          <p class="font-semibold">{clips.length} clips and photos · revision {edit.revision}</p>
+          <p class="my-2 text-sm">
+            {duration === undefined ? '' : `${duration.toFixed(1)}s total / `}{edit.state} · {settings?.aspectRatio ??
+              '9:16'} · target {settings?.length ?? 30}s
+          </p>
+          <p class="text-sm">
+            Captions {settings?.captions ? 'on' : 'off'}{settings?.titles ? ` · ${settings.titles}` : ''}
+          </p>
+          <WorkerProgress steps={edit.progress} state={edit.state} />
+          {#if edit.revisions?.length}<label class="text-sm"
+              >Revision <select
+                aria-label="Sidebar revision"
+                value={revisions[edit.id] ?? edit.revision}
+                onchange={(e) => (revisions[edit.id] = Number(e.currentTarget.value))}
+                >{#each edit.revisions as r (r.revision)}<option value={r.revision}>{r.revision}</option>{/each}</select
+              ></label
+            >{/if}
+          <button
+            type="button"
+            class="icon-action"
+            title="Revise edit"
+            aria-label="Revise edit from sidebar"
+            disabled={['queued', 'editing'].includes(edit.state)}
+            onclick={() => revise(edit)}><svg viewBox="0 0 24 24"><path d={mdiPencil} /></svg></button
+          >
+          <ol class="my-3 space-y-2">
+            {#each clips as clip (clip.id)}
+              {@const info = messages.flatMap((m) => m.assets).find((a) => a.id === clip.id)}
+              <li class="flex items-center gap-2">
+                <img
+                  class="h-12 w-16 rounded-sm object-cover"
+                  src={getAssetMediaUrl({ id: clip.id })}
+                  alt="Edit source"
+                /><span class="min-w-0 text-sm"
+                  ><span class="block truncate">{info?.originalFileName ?? 'Selected moment'}</span>{info?.type ===
+                  'IMAGE'
+                    ? 'Photo'
+                    : (info?.duration ?? 'Video')}{#if timeline?.some((c) => c.id === clip.id)}
+                    · {timeline
+                      .filter((c) => c.id === clip.id)
+                      .reduce((sum, c) => sum + c.duration, 0)
+                      .toFixed(1)}s in edit{/if}</span
+                >
+              </li>
+            {/each}
+          </ol>
+          <button
+            type="button"
+            class="rounded-lg border p-2 text-sm"
+            disabled={['queued', 'editing'].includes(edit.state) ||
+              ['queued', 'building', 'ready'].includes(library?.state ?? '')}
+            onclick={() => resolve(edit)}>Open in Resolve</button
+          >
+          {#if library?.state === 'ready'}<a
+              class="my-2 block underline"
+              href={`/hev-chat/edits/${edit.id}/resolve-download?revision=${revisions[edit.id] ?? edit.revision}`}
+              download>Download for Resolve</a
+            >{/if}
+          {#if library}<WorkerProgress steps={library.progress} state={library.state} />
+            <p class="text-sm">{library.message}</p>{/if}
+        </section>
+      {/each}
+      {#if setup}<p class="text-sm">
+          Setup: {selected.length} selected · {setup.aspectRatio} · {setup.length}s · captions {setup.captions
+            ? 'on'
+            : 'off'}
+        </p>{/if}
+    </aside>
   </div>
-</UserPageLayout>
+</div>
 
 {#if assetViewerManager.isViewing}
   {#await import('$lib/components/asset-viewer/AssetViewer.svelte') then { default: AssetViewer }}
@@ -650,3 +868,51 @@
     </Portal>
   {/await}
 {/if}
+
+<style>
+  @layer components {
+    .icon-action {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2.5rem;
+      height: 2.5rem;
+      border-radius: 0.65rem;
+    }
+  }
+  .icon-action:hover {
+    background: #8882;
+  }
+  .icon-action svg {
+    width: 1.2rem;
+    height: 1.2rem;
+    fill: currentColor;
+  }
+  .icon-action:focus-visible,
+  button:focus-visible,
+  a:focus-visible {
+    outline: 2px solid var(--hev-signal, #e25822);
+    outline-offset: 2px;
+  }
+  .user-message {
+    margin-left: 12%;
+    background: #f6e5d7;
+    border-right: 3px solid #c2451b;
+  }
+  .assistant-message {
+    margin-right: 4%;
+    background: #f4f0e6;
+    border-left: 3px solid #8885;
+  }
+  :global(.dark) .user-message {
+    background: #431f16;
+    border-right-color: #eaa276;
+  }
+  :global(.dark) .assistant-message {
+    background: #242421;
+  }
+  .message {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+</style>
