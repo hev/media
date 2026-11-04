@@ -75,6 +75,12 @@ with its `asset_file` record. Inventory the selected copies and their size
 before running it; retain copies for incompatible or unavailable originals.
 Do not delete encoded files by hand or edit database rows.
 
+Normal playback keeps the `/video/playback` API URL after cleanup. The server
+serves `encodedVideoPath` when present and falls back to `originalPath` otherwise;
+a direct-playback check must verify the response source or dimensions rather
+than require an `/original` URL. Safari and Chrome on the mini were verified
+with 4K HEVC GoPro originals under this policy.
+
 Edit and Resolve handoffs consume original external-library paths and stage
 their own revision media. Before cleanup on any deployment, verify those flows
 have no dependency on Immich's encoded copies.
