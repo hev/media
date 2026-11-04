@@ -48,6 +48,43 @@ The Dockerfile-specific ignore file sends only the web output as build context.
 The companion machine-learning image must also be pinned to
 `ghcr.io/immich-app/immich-machine-learning:v3.3.5`.
 
+## Original HEVC playback
+
+Configure video transcoding through Immich's administrator settings or
+`PUT /api/system-config`. The playback policy is `ffmpeg.transcode: required`
+with `ffmpeg.acceptedVideoCodecs: [h264, hevc]`. These are runtime settings;
+this web-only fork does not pin or override the server's configuration.
+The web service worker passes video and byte-range requests directly to the
+network, so separate ranges of a large original cannot reuse a response cached
+by URL for thumbnail loading.
+
+Required-only conversion ignores the target resolution for compatible originals,
+so accepted 4K HEVC footage can play without a 720p H.264 copy. Keep the audio
+and container compatibility checks enabled. ProRes, incompatible audio and
+unsupported containers still need conversion or remuxing. Upstream v3.3.5 also
+requires a pixel format ending in `420p` for direct playback; accepting HEVC
+does not bypass its conversion of 10-bit pixel formats.
+
+Existing encoded copies continue to take precedence in normal playback until
+removed. Verify **Play original video** in the viewer in Safari and Chrome
+before cleanup. For compatible, available, unedited originals, use Immich's
+**Refresh encoded videos** asset action (`POST /api/assets/jobs` with
+`name: transcode-video` and the selected `assetIds`). The upstream conversion
+job re-evaluates the policy and removes an unnecessary encoded file together
+with its `asset_file` record. Inventory the selected copies and their size
+before running it; retain copies for incompatible or unavailable originals.
+Do not delete encoded files by hand or edit database rows.
+
+Normal playback keeps the `/video/playback` API URL after cleanup. The server
+serves `encodedVideoPath` when present and falls back to `originalPath` otherwise;
+a direct-playback check must verify the response source or dimensions rather
+than require an `/original` URL. Safari and Chrome on the mini were verified
+with 4K HEVC GoPro originals under this policy.
+
+Edit and Resolve handoffs consume original external-library paths and stage
+their own revision media. Before cleanup on any deployment, verify those flows
+have no dependency on Immich's encoded copies.
+
 ## Read-only photo chat
 
 `/chat/<threadId>` restores a persistent thread; `/chat` streams a transcript and photo results from the separate `hev-chat/`
