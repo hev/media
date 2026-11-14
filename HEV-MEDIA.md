@@ -188,3 +188,15 @@ sidebar. Resolve builds report their actual native builder states separately.
 Polling copies histories into the thread without overwriting newer turns or
 settings. Rendered revisions expose safe source IDs, cut durations and measured
 output duration for the edit summary.
+
+## Private video edit workers
+
+`hev-edit/` launches each revision through `hev dispatch` on the mini using Codex
+and gpt-6.1-sol. Configure `HEV_EDIT_DISPATCH` (default `hev`) and
+`HEV_EDIT_DISPATCH_REPO` (default `edit-scratch`). Admit a private scratch repo
+with main on the internal disk; the media checkout remains on EXTERNAL and is
+unsuitable as a dispatch worktree root. See [launcher setup](hev-edit/README.md#kit-setup-on-the-mini).
+Jobs retain dispatch names for logs/attach/stop, retry host-full capacity, and
+reattach live edits after launcher restart. Orders, originals and rendered outputs
+stay in the private job directory; editing workers must never commit, push or open
+PRs. Kit owns only the incidental worktree/branch. Buffer remains explicitly gated.
