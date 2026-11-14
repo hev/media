@@ -22,6 +22,8 @@ test('launch order, explicit harness/model, capacity backoff and cleanup', async
   assert.deepEqual(progress.slice(0, 2), [['queued', 'queued'], ['queued', 'queued']]);
   const order = await readFile(path.join(dir, 'order-2.md'), 'utf8');
   for (const text of ['host: mini', 'repo: "private-scratch"', 'harness: codex', 'model: gpt-6.1-sol', 'timeout: 180', dir, 'Do NOT commit, push, create branches, or open a PR', 'Keep original prompt. final.mp4 cut.json progress-2.json']) assert.ok(order.includes(text), text);
+  // hev dispatch rejects orders without an Acceptance section after the frontmatter.
+  assert.match(order.split(/^---$/m)[2], /^## Acceptance\n- /m);
   assert.deepEqual(calls[0], { exe: '/fake/hev', args: ['dispatch', path.join(dir, 'order-2.md'), '--host', 'mini', '--json'] });
   await adapter.clean(job);
   assert.deepEqual(calls.at(-1).args, ['dispatch', 'clean', job.dispatchRun, '--host', 'mini', '--json']);
