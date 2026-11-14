@@ -19,7 +19,7 @@ Configuration (private values belong outside this public repository):
   its Docker context. No container or volume is created or changed.
 - `HEV_EDIT_DISPATCH`: kit executable path, defaults to `hev`.
 - `HEV_EDIT_DISPATCH_REPO`: admitted internal-disk scratch repo, defaults to
-  `edit-scratch` (main branch). See setup below.
+  `media-edits` (main branch). See setup below.
 - `HEV_EDIT_PORT`: defaults to 2291; `HEV_EDIT_BIND` defaults to `127.0.0.1`.
 - `HEV_EDIT_BUFFER_ENABLED`: unset by default. Only set `1` after the TWC
   integration has merged and been checked out in the configured main checkout.
@@ -58,11 +58,9 @@ Use **Open in Resolve** on a rendered revision. The card tracks the queued/build
 The launcher must run on the mini with kit configured `[hosts.mini] local = true`.
 Use an admitted repo on the internal disk: `~/workspace/media` points onto
 `/Volumes/EXTERNAL`, which SSH/tmux workers cannot reliably read. Do not move it.
-Default `edit-scratch` is a proposed private scratch repo, not an assumed existing
-admission. Create a tiny private remote named `edit-scratch` with a committed `main` branch, then run
-`hev admission add PRIVATE_GIT_URL --host mini` with the host's
-workspace configured on the internal disk. Check `hev admission ls --host mini`
-and confirm the resolved path is internal before starting the launcher. Override
+The default, private `hev/media-edits`, is admitted on the mini at
+`~/workspace/media-edits` (internal disk; `hev admission add
+https://github.com/hev/media-edits.git --host mini`). Override
 `HEV_EDIT_DISPATCH_REPO` for a different admitted internal-disk repo.
 
 Orders live privately at `<HEV_EDIT_ROOT>/<uuid>/order-N.md`. Kit creates its

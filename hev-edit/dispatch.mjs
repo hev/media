@@ -14,7 +14,7 @@ export function dispatchState(value) {
   return result.exit_code === 0 ? 'done' : 'failed';
 }
 export class EditDispatch {
-  constructor({ exe = process.env.HEV_EDIT_DISPATCH || 'hev', repo = process.env.HEV_EDIT_DISPATCH_REPO || 'edit-scratch', call = execute, wait = sleep } = {}) {
+  constructor({ exe = process.env.HEV_EDIT_DISPATCH || 'hev', repo = process.env.HEV_EDIT_DISPATCH_REPO || 'media-edits', call = execute, wait = sleep } = {}) {
     Object.assign(this, { exe, repo, call, wait });
   }
   async command(args, dir) {

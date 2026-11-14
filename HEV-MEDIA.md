@@ -193,7 +193,7 @@ output duration for the edit summary.
 
 `hev-edit/` launches each revision through `hev dispatch` on the mini using Codex
 and gpt-6.1-sol. Configure `HEV_EDIT_DISPATCH` (default `hev`) and
-`HEV_EDIT_DISPATCH_REPO` (default `edit-scratch`). Admit a private scratch repo
+`HEV_EDIT_DISPATCH_REPO` (default `media-edits`). Admit a private scratch repo
 with main on the internal disk; the media checkout remains on EXTERNAL and is
 unsuitable as a dispatch worktree root. See [launcher setup](hev-edit/README.md#kit-setup-on-the-mini).
 Jobs retain dispatch names for logs/attach/stop, retry host-full capacity, and
