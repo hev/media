@@ -92,6 +92,8 @@ export function transition(job, state, note) {
     at: Date.now(),
     agent: "codex",
     model: "gpt-6.1-sol",
+    ...(job.dispatchRevision === job.revision && job.dispatchRun
+      ? { dispatchRun: job.dispatchRun } : {}),
   });
 }
 export class Queue {
