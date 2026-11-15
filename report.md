@@ -2,7 +2,7 @@
 
 Requested by local:hev.
 
-Deployed application revision: `d9d1bdcce1663253d4e482f51bee785679b6d79c`. Target branch: `brand/hev-media`. PR: pending creation.
+Deployed application revision: `d9d1bdcce1663253d4e482f51bee785679b6d79c`. Target branch: `brand/hev-media`. PR: https://github.com/hev/media/pull/35 (opened as draft; corrected-candidate acceptance passed).
 
 `/open` (and `/open 2`) selects the thread's latest job and a rendered revision without inference. The existing Resolve builder supplies its progress and authenticated download. Job ordering follows the thread, including after launcher restarts. The sidebar puts Download edit and Files used before revision settings. Source entries link to the normal Immich photo/asset route and show capture date, duration in seconds and each used in/out range.
 
