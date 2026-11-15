@@ -125,7 +125,13 @@ export async function runEditTool(
         throw Error(
           'Select original photos or videos in the external library.',
         );
-      assets.push({ id: asset.id, originalPath: asset.originalPath });
+      assets.push({
+        id: asset.id,
+        originalPath: asset.originalPath,
+        originalFileName: asset.originalFileName,
+        fileCreatedAt: asset.fileCreatedAt,
+        duration: asset.duration,
+      });
     }
     body = {
       assets,
@@ -207,7 +213,7 @@ export async function resolveCandidates(
   const candidates = [
     ...thread.selected,
     ...thread.messages.flatMap((m) => m.assets),
-  ].filter((a) => a.type === 'VIDEO' && !seen.has(a.id) && !!seen.add(a.id));
+  ].filter((a) => !seen.has(a.id) && !!seen.add(a.id));
   if (thread.smartQuery) {
     const hits = await api.searchSmart(
       {
@@ -228,11 +234,17 @@ export async function resolveCandidates(
   const result = [];
   for (const a of candidates.slice(0, 40)) {
     const asset = await api.getAssetInfo({ id: a.id }, options);
-    if (asset.type === 'VIDEO' && asset.originalPath?.startsWith('/external/'))
+    if (
+      ['VIDEO', 'IMAGE'].includes(asset.type) &&
+      asset.originalPath?.startsWith('/external/')
+    )
       result.push({
         id: asset.id,
         type: asset.type,
         originalPath: asset.originalPath,
+        originalFileName: asset.originalFileName,
+        fileCreatedAt: asset.fileCreatedAt,
+        duration: asset.duration,
       });
   }
   return result;

@@ -41,7 +41,7 @@
   let setup = $state<Setup>();
   let status = $state('');
   let visible = $state<Record<number, number>>({});
-  const commands = ['search', 'edit', 'revise', 'resolve', 'publish'];
+  const commands = ['search', 'edit', 'open', 'revise', 'resolve', 'publish'];
   async function saveSetup() {
     if (!current || !setup) return;
     setup.assetIds = selected;
@@ -70,6 +70,10 @@
     }
   }
   async function command(name: string) {
+    if (name === 'open') {
+      await openDownload();
+      return;
+    }
     if (name === 'edit') {
       question = '';
       await openSetup();
@@ -181,16 +185,18 @@
   }
   let drafts = $state<Record<string, Setup>>({});
   function settingsFor(edit: Edit): Setup {
-    return (drafts[edit.id] ??= {
-      aspectRatio: '9:16',
-      length: 30,
-      captions: true,
-      titles: '',
-      music: '',
-      brief: '',
-      assetIds: [],
-      ...edit.setup,
-    });
+    return (
+      drafts[edit.id] ?? {
+        aspectRatio: '9:16',
+        length: 30,
+        captions: true,
+        titles: '',
+        music: '',
+        brief: '',
+        assetIds: [],
+        ...edit.setup,
+      }
+    );
   }
   async function reviseSettings(edit: Edit) {
     const { aspectRatio, length, captions, titles, music, brief } = settingsFor(edit);
@@ -214,11 +220,38 @@
       await refreshEdits();
     }
   }
-  type LibraryBuild = { state: string; message: string; command?: string; progress?: Progress[] };
+  async function openDownload() {
+    const argument = question.trim().match(/^\/open(?:\s+(.*))?$/)?.[1];
+    question = '';
+    const edit = edits.at(-1);
+    const revision = argument ? Number(argument) : edit?.revisions?.at(-1)?.revision;
+    if (!edit || !revision || !edit.revisions?.some((r) => r.revision === revision)) {
+      error = 'No rendered edit available. Use /edit to create an edit first.';
+      return;
+    }
+    revisions[edit.id] = revision;
+    editDrawer = true;
+    await resolve(edit);
+  }
+  type UsedFile = {
+    id: string;
+    name: string;
+    date: string | null;
+    duration: string | number | null;
+    in: number;
+    out: number;
+  };
+  type LibraryBuild = {
+    filesUsed?: UsedFile[];
+    state: string;
+    message: string;
+    command?: string;
+    progress?: Progress[];
+  };
   let libraryBuilds = $state<Record<string, LibraryBuild>>({});
   let libraryPending = $state<Record<string, boolean>>({});
   async function resolve(edit: Edit) {
-    const revision = revisions[edit.id] ?? edit.revision;
+    const revision = revisions[edit.id] ?? edit.revisions?.at(-1)?.revision ?? edit.revision;
     const key = edit.id + ':' + revision;
     libraryPending[key] = true;
     try {
@@ -231,7 +264,7 @@
   }
   async function refreshLibraries() {
     for (const edit of edits) {
-      const revision = revisions[edit.id] ?? edit.revision;
+      const revision = revisions[edit.id] ?? edit.revisions?.at(-1)?.revision ?? edit.revision;
       const key = edit.id + ':' + revision;
       // GET only reads existing state; viewing a card never starts a build.
       try {
@@ -244,7 +277,9 @@
   }
   async function publish(edit: Edit) {
     try {
-      await api('/edits/' + edit.id + '/publish', 'POST', { revision: revisions[edit.id] ?? edit.revision });
+      await api('/edits/' + edit.id + '/publish', 'POST', {
+        revision: revisions[edit.id] ?? edit.revisions?.at(-1)?.revision ?? edit.revision,
+      });
       await refreshEdits();
     } catch (error_) {
       error = String(error_);
@@ -273,6 +308,7 @@
       const response = await fetch('/hev-chat/threads/' + current.id + '/edits');
       if (response.ok) {
         edits = await response.json();
+        for (const edit of edits) drafts[edit.id] ??= settingsFor(edit);
         await refreshLibraries();
         await scrollLatest();
       }
@@ -368,6 +404,7 @@
             break;
           }
           case 'edit': {
+            drafts[event.job.id] ??= settingsFor(event.job);
             const previous = edits.findIndex((job) => job.id === event.job.id);
             if (previous === -1) {
               edits.push(event.job);
@@ -679,7 +716,9 @@
             {#each message.jobs ?? [] as jobId (jobId)}
               {@const edit = edits.find((j) => j.id === jobId)}
               {#if edit}
-                {@const revision = edit.revisions?.find((r) => r.revision === (revisions[edit.id] ?? edit.revision))}
+                {@const revision = edit.revisions?.find(
+                  (r) => r.revision === (revisions[edit.id] ?? edit.revisions?.at(-1)?.revision ?? edit.revision),
+                )}
                 <article
                   id={`edit-${edit.id}`}
                   aria-label={`Edit ${edit.id}`}
@@ -690,7 +729,7 @@
                   <WorkerProgress steps={edit.progress} state={edit.state} />
                   {#if edit.revisions?.length}<label
                       >Revision <select
-                        value={revisions[edit.id] ?? edit.revision}
+                        value={revisions[edit.id] ?? edit.revisions?.at(-1)?.revision ?? edit.revision}
                         onchange={(e) => (revisions[edit.id] = Number(e.currentTarget.value))}
                         >{#each edit.revisions as r (r.revision)}<option value={r.revision}>{r.revision}</option
                           >{/each}</select
@@ -714,7 +753,8 @@
                     onclick={() => revise(edit)}><svg viewBox="0 0 24 24"><path d={mdiMovieEditOutline} /></svg></button
                   >
                   {#if revision || edit.preview}
-                    {@const libraryKey = edit.id + ':' + (revisions[edit.id] ?? edit.revision)}
+                    {@const libraryKey =
+                      edit.id + ':' + (revisions[edit.id] ?? edit.revisions?.at(-1)?.revision ?? edit.revision)}
                     {@const library = libraryBuilds[libraryKey]}
                     {#if library?.state !== 'ready'}<button
                         type="button"
@@ -722,7 +762,7 @@
                         disabled={libraryPending[libraryKey] ||
                           ['queued', 'waiting', 'building', 'ready'].includes(library?.state ?? '')}
                         onclick={() => resolve(edit)}
-                        >{library?.state === 'failed' ? 'Retry Resolve build' : 'Build Resolve project'}</button
+                        >{library?.state === 'failed' ? 'Retry download build' : 'Download edit'}</button
                       >{/if}
                     {#if library}
                       <p role="status" class="mt-2">{library.message}</p>
@@ -730,13 +770,13 @@
                       {#if library.state === 'ready' && library.command}
                         <a
                           class="text-on-primary mt-2 inline-block rounded-lg bg-primary p-2"
-                          href={`hevmedia://resolve/${edit.id}/${revisions[edit.id] ?? edit.revision}`}
+                          href={`hevmedia://resolve/${edit.id}/${revisions[edit.id] ?? edit.revisions?.at(-1)?.revision ?? edit.revision}`}
                           >Open in Resolve</a
                         >
                         <a
                           class="ml-2 underline"
-                          href={`/hev-chat/edits/${edit.id}/resolve-download?revision=${revisions[edit.id] ?? edit.revision}`}
-                          download>Download ZIP</a
+                          href={`/hev-chat/edits/${edit.id}/resolve-download?revision=${revisions[edit.id] ?? edit.revisions?.at(-1)?.revision ?? edit.revision}`}
+                          download>Download edit</a
                         >
                         <p class="mt-2">
                           Files land in ~/Movies/hev-video/&lt;project-name&gt;/. Install the laptop handler once to
@@ -836,10 +876,13 @@
       {#each edits as edit (edit.id)}
         {@const settings = settingsFor(edit)}
         {@const clips = edit.assets ?? []}
-        {@const chosen = edit.revisions?.find((r) => r.revision === (revisions[edit.id] ?? edit.revision))}
+        {@const chosen = edit.revisions?.find(
+          (r) => r.revision === (revisions[edit.id] ?? edit.revisions?.at(-1)?.revision ?? edit.revision),
+        )}
         {@const timeline = chosen?.timeline ?? edit.timeline}
         {@const duration = chosen?.duration ?? edit.duration}
-        {@const library = libraryBuilds[edit.id + ':' + (revisions[edit.id] ?? edit.revision)]}
+        {@const library =
+          libraryBuilds[edit.id + ':' + (revisions[edit.id] ?? edit.revisions?.at(-1)?.revision ?? edit.revision)]}
         <section class="mb-5" aria-label="Edit summary">
           <p class="font-semibold">
             {clips.filter((c) => messages.flatMap((m) => m.assets).find((a) => a.id === c.id)?.type !== 'IMAGE').length} clips
@@ -853,6 +896,50 @@
           <p class="text-sm">
             Captions {settings?.captions ? 'on' : 'off'}{settings?.titles ? ` · ${settings.titles}` : ''}
           </p>
+          {#if library?.state !== 'ready'}<button
+              type="button"
+              class="rounded-lg border p-2 text-sm"
+              disabled={['queued', 'editing'].includes(edit.state) ||
+                ['queued', 'building', 'ready'].includes(library?.state ?? '')}
+              onclick={() => resolve(edit)}
+              >{library?.state === 'failed' ? 'Retry download build' : 'Download edit'}</button
+            >{/if}
+          {#if library?.state === 'ready'}<a
+              class="my-2 block underline"
+              href={`hevmedia://resolve/${edit.id}/${revisions[edit.id] ?? edit.revisions?.at(-1)?.revision ?? edit.revision}`}
+              >Open in Resolve</a
+            >
+            <p class="text-sm">Files land in ~/Movies/hev-video/&lt;project-name&gt;/.</p>
+            <a
+              class="my-2 block underline"
+              href={`/hev-chat/edits/${edit.id}/resolve-download?revision=${revisions[edit.id] ?? edit.revisions?.at(-1)?.revision ?? edit.revision}`}
+              download>Download edit</a
+            >{/if}
+          <p class="text-xs opacity-70">
+            Includes original sources; downloads can be large. A failed build must be retried; incomplete ZIPs are never
+            available.
+          </p>
+          {#if library}<WorkerProgress steps={library.progress} state={library.state} />
+            <p class="text-sm">{library.message}</p>{/if}
+          {#if library?.filesUsed?.length}
+            <h3 class="mt-3 font-semibold">Files used</h3>
+            <ul class="my-2 space-y-2 text-sm">
+              {#each library.filesUsed as file, index (index)}
+                <li>
+                  <a class="underline" href={`/photos/${file.id}`}>{file.name}</a>
+                  <span class="block"
+                    >{file.date ? new Date(file.date).toLocaleString() : 'Capture date unavailable'} ·
+                    {typeof file.duration === 'number'
+                      ? (file.duration / 1000).toFixed(1) + 's source'
+                      : file.duration
+                        ? file.duration + ' source'
+                        : 'Photo'} · {file.in.toFixed(2)}s–{file.out.toFixed(2)}s used</span
+                  >
+                </li>
+              {/each}
+            </ul>
+          {/if}
+
           <fieldset class="my-3 grid gap-2" disabled={['queued', 'editing'].includes(edit.state)}>
             <legend>Edit settings</legend>
             <label
@@ -886,7 +973,7 @@
           {#if edit.revisions?.length}<label class="text-sm"
               >Revision <select
                 aria-label="Sidebar revision"
-                value={revisions[edit.id] ?? edit.revision}
+                value={revisions[edit.id] ?? edit.revisions?.at(-1)?.revision ?? edit.revision}
                 onchange={(e) => (revisions[edit.id] = Number(e.currentTarget.value))}
                 >{#each edit.revisions as r (r.revision)}<option value={r.revision}>{r.revision}</option>{/each}</select
               ></label
@@ -899,49 +986,6 @@
             disabled={['queued', 'editing'].includes(edit.state)}
             onclick={() => revise(edit)}><svg viewBox="0 0 24 24"><path d={mdiMovieEditOutline} /></svg></button
           >
-          <ol class="my-3 space-y-2">
-            {#each clips as clip (clip.id)}
-              {@const info = messages.flatMap((m) => m.assets).find((a) => a.id === clip.id)}
-              <li class="flex items-center gap-2">
-                <img
-                  class="h-12 w-16 rounded-sm object-cover"
-                  src={getAssetMediaUrl({ id: clip.id })}
-                  alt="Edit source"
-                /><span class="min-w-0 text-sm"
-                  ><span class="block truncate">{info?.originalFileName ?? 'Selected moment'}</span>{info?.type ===
-                  'IMAGE'
-                    ? 'Photo'
-                    : info?.duration
-                      ? `${(info.duration / 1000).toFixed(1)}s source`
-                      : 'Video'}{#if timeline?.some((c) => c.id === clip.id)}
-                    · {timeline
-                      .filter((c) => c.id === clip.id)
-                      .reduce((sum, c) => sum + c.duration, 0)
-                      .toFixed(1)}s in edit{/if}</span
-                >
-              </li>
-            {/each}
-          </ol>
-          <button
-            type="button"
-            class="rounded-lg border p-2 text-sm"
-            disabled={['queued', 'editing'].includes(edit.state) ||
-              ['queued', 'building', 'ready'].includes(library?.state ?? '')}
-            onclick={() => resolve(edit)}
-            >{library?.state === 'failed' ? 'Retry Resolve build' : 'Build Resolve project'}</button
-          >
-          {#if library?.state === 'ready'}<a
-              class="my-2 block underline"
-              href={`hevmedia://resolve/${edit.id}/${revisions[edit.id] ?? edit.revision}`}>Open in Resolve</a
-            >
-            <p class="text-sm">Files land in ~/Movies/hev-video/&lt;project-name&gt;/.</p>
-            <a
-              class="my-2 block underline"
-              href={`/hev-chat/edits/${edit.id}/resolve-download?revision=${revisions[edit.id] ?? edit.revision}`}
-              download>Download ZIP</a
-            >{/if}
-          {#if library}<WorkerProgress steps={library.progress} state={library.state} />
-            <p class="text-sm">{library.message}</p>{/if}
         </section>
       {/each}
       {#if setup}<p class="text-sm">

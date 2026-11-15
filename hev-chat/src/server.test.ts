@@ -162,12 +162,14 @@ test('HTTP threads authenticate and isolate owners for reads, changes, deletion 
   }
 });
 
-test('Resolve authorization and card confirmation starts exactly one edit after saving setup', async () => {
+test('/open ready, building and no edit; downloads enforce admin and ownership including Range; setup starts exactly once', async () => {
   const { Threads } = await import('./threads.js');
   const id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
   const dir = mkdtempSync(join(tmpdir(), 'kit-http-'));
   const db = new Threads(join(dir, 'threads.sqlite'));
   const thread = db.create('owner');
+  const olderId = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
+  db.claim('owner', thread, olderId);
   db.claim('owner', thread, id);
   thread.messages.push({
     role: 'user',
@@ -198,6 +200,7 @@ test('Resolve authorization and card confirmation starts exactly one edit after 
   });
   let builds = 0;
   let starts = 0;
+  let libraryState = 'queued';
   const launcher = createServer(async (req, res) => {
     assert.equal(req.headers.authorization, 'Bearer launcher-secret');
     if (req.url === '/jobs' && req.method === 'POST') {
@@ -225,9 +228,18 @@ test('Resolve authorization and card confirmation starts exactly one edit after 
       builds++;
       res.setHeader('Content-Type', 'application/json');
       res.end(
-        JSON.stringify({ state: req.method === 'POST' ? 'queued' : 'idle' }),
+        JSON.stringify({
+          state: req.method === 'POST' ? libraryState : 'idle',
+        }),
       );
-    } else res.end(JSON.stringify({ id }));
+    } else if (req.url === '/jobs')
+      res.end(
+        JSON.stringify([
+          { id, revisions: [{ revision: 1, preview: '/preview' }] },
+          { id: olderId, revisions: [{ revision: 1, preview: '/preview' }] },
+        ]),
+      );
+    else res.end(JSON.stringify({ id }));
   });
   const upstreamPort = await listen(upstream),
     launcherPort = await listen(launcher);
@@ -304,6 +316,57 @@ test('Resolve authorization and card confirmation starts exactly one edit after 
     assert.equal(await archive.text(), 'LIBRARY-ZIP');
     assert.match(archive.headers.get('content-disposition')!, /resolve.zip/);
     assert.equal(builds, 3);
+    for (const user of ['viewer', 'other-admin']) {
+      const denied = await fetch(url + download, {
+        headers: { Authorization: 'Bearer ' + user, Range: 'bytes=0-3' },
+      });
+      assert.equal(denied.status, user === 'viewer' ? 403 : 404);
+    }
+    for (const state of ['queued', 'ready']) {
+      libraryState = state;
+      const response = await fetch(url + '/chat', {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer owner',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          threadId: thread.id,
+          messages: [{ role: 'user', content: '/open' }],
+        }),
+      });
+      const events = await response.text();
+      assert.equal(response.status, 200);
+      assert.match(
+        events,
+        state === 'ready'
+          ? /Your edit is ready/
+          : /Preparing your edit download/,
+      );
+      assert.match(events, /"type":"edit"/);
+      assert.ok(
+        events.includes('"id":"' + id + '"'),
+        'thread order selects latest job, not launcher listing order',
+      );
+    }
+    const emptyThread = (await (
+      await fetch(url + '/threads', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer owner' },
+      })
+    ).json()) as any;
+    const noEdit = await fetch(url + '/chat', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer owner',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        threadId: emptyThread.id,
+        messages: [{ role: 'user', content: '/open' }],
+      }),
+    });
+    assert.match(await noEdit.text(), /No rendered edit available.*\/edit/);
     const request = (user: string, path: string, body: object) =>
       fetch(url + path, {
         method: 'POST',

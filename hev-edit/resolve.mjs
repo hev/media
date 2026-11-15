@@ -155,6 +155,10 @@ export class ResolveQueue {
         "Resolve build interrupted; inspect artifacts before rebuilding.";
       await this.persist(item);
     }
+    if (item.state === "ready" && item.packageVersion !== 2) {
+      item.state = "failed";
+      item.message = "Download package needs rebuilding";
+    }
     if (item.state === "ready") {
       try {
         await stat(item.zip);
@@ -248,6 +252,7 @@ export function publicResolve(item) {
     state: item.state,
     message: item.state === "failed" ? failure : item.message,
     command: item.command,
+    filesUsed: item.filesUsed ?? [],
     progress: (item.progress ?? []).map(
       ({ revision, stage, message, at, agent, model }) => ({
         revision,
@@ -259,6 +264,25 @@ export function publicResolve(item) {
       }),
     ),
   };
+}
+export async function filesForRevision(root, job, revision, candidates = []) {
+  const dir = path.join(root, job.id);
+  let cut;
+  try {
+    cut = JSON.parse(await readFile(path.join(dir, `cut-${revision}.json`), "utf8"));
+  } catch (e) {
+    if (e.code !== "ENOENT" || revision !== job.revision) throw e;
+    cut = JSON.parse(await readFile(path.join(dir, "cut.json"), "utf8"));
+  }
+  return (cut.clips ?? []).flatMap((clip) => {
+    if (!clip.src || clip.card) return [];
+    const asset = job.input.assets.find((a) => clip.src.includes(a.id) ||
+      path.basename(clip.src) === path.basename(a.originalPath));
+    if (!asset) return [];
+    const info = candidates.find((a) => a.id === asset.id) ?? asset;
+    return [{ id: asset.id, name: info.originalFileName ?? path.basename(asset.originalPath),
+      date: info.fileCreatedAt ?? null, duration: info.duration ?? null, in: clip.in, out: clip.out }];
+  });
 }
 export async function buildResolve({
   root,
@@ -302,6 +326,7 @@ export async function buildResolve({
     return rel;
   }
   const used = [];
+  const filesUsed = await filesForRevision(root, job, revision, candidates);
   for (let i = 0; i < cut.clips.length; i++) {
     const c = cut.clips[i];
     if (c.card) {
@@ -380,9 +405,11 @@ export async function buildResolve({
     );
   }
   await stat(drp);
+  // Only the immutable rendered revision belongs in this revision's package.
+  await copyFile(path.join(dir, `revision-${revision}.mp4`), path.join(out, "final.mp4"));
   await writeFile(
     path.join(out, "README.txt"),
-    `In Resolve: File > Import Project > ${name}.drp (or File > Import > Timeline > timeline.fcpxml)\nImport captions.srt as subtitles (includes timed titles).\nKeep this folder at ~/Movies/hev-video/${name}/ on the laptop.\n`,
+    `Play final.mp4 to watch your finished edit.\nUnzip the whole folder before opening. Double-click the .drp or use File > Import Project in Resolve.\nFiles: final.mp4, media/ (original sources), .drp, timeline.fcpxml, captions.srt.\nFiles used:\n${filesUsed.map((f) => `${f.name} | ${f.date ?? "capture date unavailable"} | ${f.in}s–${f.out}s`).join("\n")}\n\nIn Resolve: File > Import Project > ${name}.drp (or File > Import > Timeline > timeline.fcpxml)\nImport captions.srt as subtitles (includes timed titles).\nKeep this folder at ~/Movies/hev-video/${name}/ on the laptop.\n`,
   );
   const zip = path.join(dir, "resolve", `${name}.zip`);
   // --keepParent root must be the portable project name, not rN.
@@ -391,7 +418,7 @@ export async function buildResolve({
     timeout: 180000,
   });
   await rename(zip + ".tmp", zip);
-  return { zip, folder: out, name, drp };
+  return { zip, folder: out, name, drp, filesUsed, packageVersion: 2 };
 }
 
 export async function downloadResolve(queue, job, revision, res) {
