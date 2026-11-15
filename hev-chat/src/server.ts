@@ -291,6 +291,9 @@ const server = createServer(async (req, res) => {
           JSON.stringify(
             jobs
               .filter((j) => thread.jobs.includes(j.id))
+              .sort(
+                (a, b) => thread.jobs.indexOf(a.id) - thread.jobs.indexOf(b.id),
+              )
               .map((j) => ({ ...j, threadId: thread.id })),
           ),
         );
@@ -497,7 +500,7 @@ const server = createServer(async (req, res) => {
         const response = await launcher('/jobs');
         if (!response.ok) throw Error('Could not load edits.');
         const jobs = (await response.json()) as any[];
-        const job = jobs.filter((j) => thread.jobs.includes(j.id)).at(-1);
+        const job = jobs.find((j) => j.id === thread.jobs.at(-1));
         const rendered = job?.revisions?.filter((r: any) => r.preview);
         const revision = slash.argument
           ? Number(slash.argument)

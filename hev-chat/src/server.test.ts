@@ -168,6 +168,8 @@ test('/open ready, building and no edit; downloads enforce admin and ownership i
   const dir = mkdtempSync(join(tmpdir(), 'kit-http-'));
   const db = new Threads(join(dir, 'threads.sqlite'));
   const thread = db.create('owner');
+  const olderId = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
+  db.claim('owner', thread, olderId);
   db.claim('owner', thread, id);
   thread.messages.push({
     role: 'user',
@@ -234,6 +236,7 @@ test('/open ready, building and no edit; downloads enforce admin and ownership i
       res.end(
         JSON.stringify([
           { id, revisions: [{ revision: 1, preview: '/preview' }] },
+          { id: olderId, revisions: [{ revision: 1, preview: '/preview' }] },
         ]),
       );
     else res.end(JSON.stringify({ id }));
@@ -341,6 +344,10 @@ test('/open ready, building and no edit; downloads enforce admin and ownership i
           : /Preparing your edit download/,
       );
       assert.match(events, /"type":"edit"/);
+      assert.ok(
+        events.includes('"id":"' + id + '"'),
+        'thread order selects latest job, not launcher listing order',
+      );
     }
     const emptyThread = (await (
       await fetch(url + '/threads', {
