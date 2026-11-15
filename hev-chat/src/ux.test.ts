@@ -1,6 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { editSetup, isConfirmation, parseSlash, relevantAssets } from './ux.js';
+import {
+  initialEditSetup,
+  editToolError,
+  editSetupRequired,
+  editSetup,
+  isConfirmation,
+  parseSlash,
+  relevantAssets,
+} from './ux.js';
 import { Threads } from './threads.js';
 test('natural confirmations accept clear assent and reject negation or embedded assent', () => {
   for (const text of ['give it a go', 'Yes!', 'do it', 'confirm', 'go ahead.'])
@@ -170,4 +178,43 @@ test('video titles strip Adam-style conversational lead-ins and retain temporal 
     ],
   ])
     assert.equal(videoTitle(prompt), title);
+});
+
+test('setup preselects a single get_asset result and honors request defaults', () => {
+  const thread = {
+    selected: [],
+    messages: [
+      {
+        role: 'user',
+        content: 'make a vertical video no text 18 seconds',
+        assets: [],
+      },
+      {
+        role: 'assistant',
+        content: 'Found it',
+        assets: [{ id: 'one', type: 'VIDEO' }],
+      },
+    ],
+  };
+  const setup = initialEditSetup(thread);
+  assert.deepEqual(setup.assetIds, ['one']);
+  assert.equal(setup.aspectRatio, '9:16');
+  assert.equal(setup.captions, false);
+  assert.equal(setup.titles, '');
+  assert.equal(setup.length, 18);
+  for (const [text, ratio] of [
+    ['square no captions', '1:1'],
+    ['horizontal', '16:9'],
+    ['landscape', '16:9'],
+  ]) {
+    thread.messages.push({ role: 'user', content: text, assets: [] });
+    assert.equal(initialEditSetup(thread).aspectRatio, ratio);
+  }
+});
+test('model start_edit refusal is unmasked without leaking other errors', () => {
+  assert.equal(editToolError(new Error(editSetupRequired)), editSetupRequired);
+  assert.doesNotMatch(
+    editToolError(new Error('secret upstream path')),
+    /secret/,
+  );
 });

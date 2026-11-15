@@ -45,30 +45,26 @@
   async function saveSetup() {
     if (!current || !setup) return;
     setup.assetIds = selected;
-    current = await api('/threads/' + current.id + '/setup', 'POST', setup);
+    try {
+      current = await api('/threads/' + current.id + '/setup', 'POST', setup);
+      return true;
+    } catch (cause) {
+      error = cause instanceof Error ? cause.message : 'Could not save edit setup.';
+      return false;
+    }
   }
   async function openSetup() {
     const creating = !current;
     const target = current ?? (await api('/threads', 'POST'));
-    const value = target.setup ?? {
-      aspectRatio: '9:16',
-      length: 30,
-      captions: true,
-      titles: '',
-      music: '',
-      brief: 'A highlight reel of these moments',
-      assetIds: selected,
-    };
-    // /chat and /chat/[id] mount separate pages. Persist before changing route.
-    const updated = await api('/threads/' + target.id + '/setup', 'POST', value);
-    current = updated;
-    setup = updated.setup;
+    const value = await api('/threads/' + target.id + '/setup');
+    current = target;
+    setup = value;
+    selected = value.assetIds;
     if (creating) {
-      messages = updated.messages;
-      selected = updated.selected.map((a: Photo) => a.id);
+      messages = target.messages;
+      selected = value.assetIds;
       edits = [];
       await list();
-      await goto('/chat/' + updated.id);
     }
   }
   async function command(name: string) {
@@ -118,7 +114,10 @@
       headers: { 'Content-Type': 'application/json' },
       ...(body && { body: JSON.stringify(body) }),
     });
-    if (!r.ok) throw new Error('Request failed. Please try again.');
+    if (!r.ok) {
+      const detail = await r.json().catch(() => ({}));
+      throw new Error(detail.message || 'Request failed. Please try again.');
+    }
     return r.json();
   }
   async function list() {
@@ -527,7 +526,7 @@
           class="my-2 grid max-h-[45dvh] shrink-0 grid-cols-2 gap-2 overflow-y-auto rounded-xl border p-3"
           onsubmit={async (e) => {
             e.preventDefault();
-            await saveSetup();
+            if (!(await saveSetup())) return;
             question = 'give it a go';
             await send();
           }}
@@ -574,8 +573,9 @@
             /></label
           >
           <p class="col-span-2">
-            Shortlist: {selected.length} selected. Choose clips below. Start edit confirms these settings; you can also say
-            “give it a go”.
+            Shortlist: {selected.length} selected. {selected.length === 0
+              ? 'Select at least one clip below to enable Start edit.'
+              : 'Choose clips below.'} Start edit confirms these settings; you can also say “give it a go”.
           </p>
           <button
             class="rounded-lg border p-2"
