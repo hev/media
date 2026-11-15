@@ -185,16 +185,18 @@
   }
   let drafts = $state<Record<string, Setup>>({});
   function settingsFor(edit: Edit): Setup {
-    return (drafts[edit.id] ??= {
-      aspectRatio: '9:16',
-      length: 30,
-      captions: true,
-      titles: '',
-      music: '',
-      brief: '',
-      assetIds: [],
-      ...edit.setup,
-    });
+    return (
+      drafts[edit.id] ?? {
+        aspectRatio: '9:16',
+        length: 30,
+        captions: true,
+        titles: '',
+        music: '',
+        brief: '',
+        assetIds: [],
+        ...edit.setup,
+      }
+    );
   }
   async function reviseSettings(edit: Edit) {
     const { aspectRatio, length, captions, titles, music, brief } = settingsFor(edit);
@@ -306,6 +308,7 @@
       const response = await fetch('/hev-chat/threads/' + current.id + '/edits');
       if (response.ok) {
         edits = await response.json();
+        for (const edit of edits) drafts[edit.id] ??= settingsFor(edit);
         await refreshLibraries();
         await scrollLatest();
       }
@@ -401,6 +404,7 @@
             break;
           }
           case 'edit': {
+            drafts[event.job.id] ??= settingsFor(event.job);
             const previous = edits.findIndex((job) => job.id === event.job.id);
             if (previous === -1) {
               edits.push(event.job);
@@ -925,7 +929,11 @@
                   <a class="underline" href={`/photos/${file.id}`}>{file.name}</a>
                   <span class="block"
                     >{file.date ? new Date(file.date).toLocaleString() : 'Capture date unavailable'} ·
-                    {file.duration ?? 'Photo'} · {file.in.toFixed(2)}s–{file.out.toFixed(2)}s used</span
+                    {typeof file.duration === 'number'
+                      ? (file.duration / 1000).toFixed(1) + 's source'
+                      : file.duration
+                        ? file.duration + ' source'
+                        : 'Photo'} · {file.in.toFixed(2)}s–{file.out.toFixed(2)}s used</span
                   >
                 </li>
               {/each}
