@@ -52,6 +52,50 @@ export function editSetup(input: any): EditSetup {
     throw Error('Invalid edit setup');
   return value;
 }
+export const editSetupRequired =
+  'Open /edit to choose settings and confirm the shortlist.';
+export function initialEditSetup(thread: {
+  selected: { id: string }[];
+  messages: {
+    role: string;
+    content: string;
+    assets: { id: string; type?: string }[];
+  }[];
+}) {
+  const candidates = thread.selected.length
+    ? thread.selected
+    : thread.messages
+        .flatMap((m) => m.assets)
+        .filter((a) => a.type === 'VIDEO');
+  const value = editSetup({
+    assetIds: [...new Set(candidates.map((a) => a.id))].slice(0, 20),
+  });
+  for (const message of thread.messages.filter((m) => m.role === 'user')) {
+    const text = message.content;
+    if (/\bno (?:text|captions|titles)\b/i.test(text)) {
+      value.captions = false;
+      value.titles = '';
+    }
+    if (/\bvertical\b/i.test(text)) value.aspectRatio = '9:16';
+    if (/\bsquare\b/i.test(text)) value.aspectRatio = '1:1';
+    if (/\b(?:horizontal|landscape)\b/i.test(text)) value.aspectRatio = '16:9';
+    const seconds = text.match(/\b(\d+(?:\.\d+)?)\s*(?:seconds?|secs?|s)\b/i);
+    if (seconds && +seconds[1] >= 1 && +seconds[1] <= 60)
+      value.length = +seconds[1];
+  }
+  return value;
+}
+export function editToolError(error: unknown) {
+  return error instanceof Error &&
+    [
+      editSetupRequired,
+      'Video edits are available to administrators only.',
+      'Show the shortlist and ask the user to confirm before starting.',
+      'Select original photos or videos in the external library.',
+    ].includes(error.message)
+    ? error.message
+    : 'Edit unavailable or invalid arguments. Ask the user to check their selection.';
+}
 export function relevantAssets(assets: any[]) {
   // CLIP cosine distances: lower is better. Refuse missing scores rather than present raw top-N as relevant.
   const ranked = assets
