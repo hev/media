@@ -892,6 +892,46 @@
           <p class="text-sm">
             Captions {settings?.captions ? 'on' : 'off'}{settings?.titles ? ` · ${settings.titles}` : ''}
           </p>
+          {#if library?.state !== 'ready'}<button
+              type="button"
+              class="rounded-lg border p-2 text-sm"
+              disabled={['queued', 'editing'].includes(edit.state) ||
+                ['queued', 'building', 'ready'].includes(library?.state ?? '')}
+              onclick={() => resolve(edit)}
+              >{library?.state === 'failed' ? 'Retry download build' : 'Download edit'}</button
+            >{/if}
+          {#if library?.state === 'ready'}<a
+              class="my-2 block underline"
+              href={`hevmedia://resolve/${edit.id}/${revisions[edit.id] ?? edit.revisions?.at(-1)?.revision ?? edit.revision}`}
+              >Open in Resolve</a
+            >
+            <p class="text-sm">Files land in ~/Movies/hev-video/&lt;project-name&gt;/.</p>
+            <a
+              class="my-2 block underline"
+              href={`/hev-chat/edits/${edit.id}/resolve-download?revision=${revisions[edit.id] ?? edit.revisions?.at(-1)?.revision ?? edit.revision}`}
+              download>Download edit</a
+            >{/if}
+          <p class="text-xs opacity-70">
+            Includes original sources; downloads can be large. A failed build must be retried; incomplete ZIPs are never
+            available.
+          </p>
+          {#if library}<WorkerProgress steps={library.progress} state={library.state} />
+            <p class="text-sm">{library.message}</p>{/if}
+          {#if library?.filesUsed?.length}
+            <h3 class="mt-3 font-semibold">Files used</h3>
+            <ul class="my-2 space-y-2 text-sm">
+              {#each library.filesUsed as file, index (index)}
+                <li>
+                  <a class="underline" href={`/photos/${file.id}`}>{file.name}</a>
+                  <span class="block"
+                    >{file.date ? new Date(file.date).toLocaleString() : 'Capture date unavailable'} ·
+                    {file.duration ?? 'Photo'} · {file.in.toFixed(2)}s–{file.out.toFixed(2)}s used</span
+                  >
+                </li>
+              {/each}
+            </ul>
+          {/if}
+
           <fieldset class="my-3 grid gap-2" disabled={['queued', 'editing'].includes(edit.state)}>
             <legend>Edit settings</legend>
             <label
@@ -938,46 +978,6 @@
             disabled={['queued', 'editing'].includes(edit.state)}
             onclick={() => revise(edit)}><svg viewBox="0 0 24 24"><path d={mdiMovieEditOutline} /></svg></button
           >
-          {#if library?.filesUsed?.length}
-            <h3 class="mt-3 font-semibold">Files used</h3>
-            <ul class="my-2 space-y-2 text-sm">
-              {#each library.filesUsed as file, index (index)}
-                <li>
-                  <a class="underline" href={`/photos/${file.id}`}>{file.name}</a>
-                  <span class="block"
-                    >{file.date ? new Date(file.date).toLocaleString() : 'Capture date unavailable'} ·
-                    {file.duration ?? 'Photo'} · {file.in.toFixed(2)}s–{file.out.toFixed(2)}s used</span
-                  >
-                </li>
-              {/each}
-            </ul>
-          {/if}
-
-          <button
-            type="button"
-            class="rounded-lg border p-2 text-sm"
-            disabled={['queued', 'editing'].includes(edit.state) ||
-              ['queued', 'building', 'ready'].includes(library?.state ?? '')}
-            onclick={() => resolve(edit)}
-            >{library?.state === 'failed' ? 'Retry download build' : 'Download edit'}</button
-          >
-          {#if library?.state === 'ready'}<a
-              class="my-2 block underline"
-              href={`hevmedia://resolve/${edit.id}/${revisions[edit.id] ?? edit.revisions?.at(-1)?.revision ?? edit.revision}`}
-              >Open in Resolve</a
-            >
-            <p class="text-sm">Files land in ~/Movies/hev-video/&lt;project-name&gt;/.</p>
-            <a
-              class="my-2 block underline"
-              href={`/hev-chat/edits/${edit.id}/resolve-download?revision=${revisions[edit.id] ?? edit.revisions?.at(-1)?.revision ?? edit.revision}`}
-              download>Download edit</a
-            >{/if}
-          <p class="text-xs opacity-70">
-            Includes original sources; downloads can be large. A failed build must be retried; incomplete ZIPs are never
-            available.
-          </p>
-          {#if library}<WorkerProgress steps={library.progress} state={library.state} />
-            <p class="text-sm">{library.message}</p>{/if}
         </section>
       {/each}
       {#if setup}<p class="text-sm">
