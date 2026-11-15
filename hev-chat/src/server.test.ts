@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { editSetup } from './ux.js';
 import assert from 'node:assert/strict';
 import { createServer, type Server } from 'node:http';
 import { spawn } from 'node:child_process';
@@ -170,9 +171,10 @@ test('Resolve authorization and card confirmation starts exactly one edit after 
   db.claim('owner', thread, id);
   thread.messages.push({
     role: 'user',
-    content: 'Added from library',
+    content: 'make a vertical video no text 18 seconds',
     assets: [{ id, type: 'VIDEO' }],
   });
+  thread.setup = editSetup({ assetIds: [] }); // Recover legacy empty saved cards.
   db.save('owner', thread);
   db.db.close();
   const upstream = createServer((req, res) => {
@@ -317,6 +319,8 @@ test('Resolve authorization and card confirmation starts exactly one edit after 
       })
     ).json();
     assert.deepEqual(defaults.assetIds, [id]);
+    assert.equal(defaults.captions, false);
+    assert.equal(defaults.length, 18);
     const empty = await request('owner', '/threads/' + thread.id + '/setup', {
       assetIds: [],
     });
