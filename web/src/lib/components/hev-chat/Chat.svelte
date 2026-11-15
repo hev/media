@@ -60,6 +60,8 @@
     current = target;
     setup = value;
     selected = value.assetIds;
+    // Opening a non-empty card also arms a later typed confirmation.
+    if (selected.length && !(await saveSetup())) return;
     if (creating) {
       messages = target.messages;
       selected = value.assetIds;
