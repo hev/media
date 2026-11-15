@@ -34,7 +34,7 @@ test("queue coalesces, serializes revisions, caches ready and persists states", 
       const zip = path.join(root, `r${item.revision}.zip`);
       await writeFile(zip, "zip");
       active--;
-      return { zip };
+      return { zip, packageVersion: 2 };
     },
   });
   const [a, b] = await Promise.all([q.request(job, 1), q.request(job, 1)]);
@@ -413,4 +413,57 @@ test("successful renders automatically queue Resolve and Resolve failure leaves 
   assert.deepEqual(calls, [[job, 2]]);
   await prebuildResolve({ request: async () => { throw Error('Resolve unavailable'); } }, job);
   assert.equal(job.state, 'rendered');
+});
+
+test("portable package includes immutable final, originals, native project, interchange, captions and file manifest", async (t) => {
+  const { buildResolve } = await import("./resolve.mjs");
+  const { execFile } = await import("node:child_process");
+  const { promisify } = await import("node:util");
+  const root = await fixture(t);
+  const id = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
+  const dir = path.join(root, id);
+  await mkdir(path.join(dir, "media"), { recursive: true });
+  await writeFile(path.join(dir, "media", id + ".mov"), "original");
+  await writeFile(path.join(dir, "revision-1.mp4"), "revision one");
+  await writeFile(path.join(dir, "final.mp4"), "different newer render");
+  await writeFile(path.join(dir, "cut-1.json"), JSON.stringify({
+    name: "Package fixture", clips: [{ src: "media/" + id + ".mov", in: 1, out: 3 }],
+  }));
+  let link;
+  t.after(async () => { if (link) await rm(link, { force: true }); });
+  const result = await buildResolve({
+    root, revision: 1, job: { id, revision: 1, state: "rendered",
+      input: { assets: [{ id, originalPath: "/external/original.mov" }] } },
+    candidates: [{ id, originalFileName: "Holiday.mov", fileCreatedAt: "2026-10-01T12:00:00Z", duration: "00:00:10" }],
+    skill: "/fixture",
+    run: async (exe, args, options) => {
+      if (exe === "/usr/bin/zip") return promisify(execFile)(exe, args, options);
+      const out = options.cwd;
+      await mkdir(path.join(out, "out"), { recursive: true });
+      await writeFile(path.join(out, "out/timeline.fcpxml"), "<fcpxml/>");
+      await writeFile(path.join(out, "out/captions.srt"), "");
+      if (args[0]?.endsWith("resolve-project.py")) {
+        link = args[3];
+        await writeFile(path.join(out, args[2] + ".drp"), "native");
+      }
+    },
+  });
+  assert.equal(result.packageVersion, 2);
+  assert.equal(await readFile(path.join(result.folder, "final.mp4"), "utf8"), "revision one");
+  const list = execFileSync("/usr/bin/unzip", ["-Z1", result.zip], { encoding: "utf8" });
+  for (const file of ["final.mp4", "media/01_", ".drp", "timeline.fcpxml", "captions.srt", "README.txt"])
+    assert.ok(list.includes(file), file);
+  const readme = await readFile(path.join(result.folder, "README.txt"), "utf8");
+  assert.match(readme, /Holiday.mov.*2026-10-01.*1s–3s/);
+  assert.match(readme, /Double-click.*File > Import Project/);
+  assert.equal(result.filesUsed[0].id, id);
+});
+
+test("legacy cached ZIP cannot be served as a complete download package", async (t) => {
+  const root = await fixture(t);
+  const q = new ResolveQueue({ root, build: () => assert.fail("GET must not build") });
+  const zip = path.join(root, "legacy.zip");
+  await writeFile(zip, "old archive missing final.mp4");
+  await q.persist({ ...job, state: "ready", zip });
+  assert.equal((await q.status(job, 2)).state, "failed");
 });

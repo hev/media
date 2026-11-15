@@ -4,6 +4,7 @@ import {
   buildResolve,
   downloadResolve,
   publicResolve,
+  filesForRevision,
   prebuildResolve,
 } from "./resolve.mjs";
 import { createServer } from "node:http";
@@ -383,7 +384,9 @@ createServer(async (req, res) => {
           ? await libraries.request(job, revision, input.candidates ?? [])
           : await libraries.status(job, revision);
       res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify(publicResolve(item)));
+      // Read only the selected revision's cut, including legacy renders.
+      const filesUsed = await filesForRevision(root, job, revision, item.candidates ?? []);
+      res.end(JSON.stringify({ ...publicResolve(item), filesUsed }));
       return;
     }
     if (req.method === "GET" && job) {

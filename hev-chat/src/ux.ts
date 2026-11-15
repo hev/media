@@ -1,6 +1,7 @@
 export const commands = [
   'search',
   'edit',
+  'open',
   'revise',
   'resolve',
   'publish',

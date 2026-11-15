@@ -28,6 +28,7 @@ test('slash parsing keeps arguments and refuses unknown tools', () => {
     argument: 'kids at the beach',
   });
   assert.deepEqual(parseSlash('/edit'), { name: 'edit', argument: '' });
+  assert.deepEqual(parseSlash('/open 2'), { name: 'open', argument: '2' });
   assert.equal(parseSlash('a /search'), undefined);
   assert.throws(() => parseSlash('/delete'));
 });
