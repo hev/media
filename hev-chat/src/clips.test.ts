@@ -132,8 +132,8 @@ test('find-clips sends only timestamped transcript text, fenced as untrusted dat
   assert.match(body, /<steer>about agents<\/steer>/);
   assert.ok(!/external|originalPath|\.mp4|image|base64/i.test(JSON.stringify(request)));
   assert.match(request.system, /untrusted data/);
-  assert.match(request.system, /Return 12 candidates/);
-  assert.equal(request.tool_choice.name, 'propose_clips');
+  assert.match(request.system, /calling propose_clips exactly once with 12 candidates/);
+  assert.deepEqual(request.tools.map((t) => t.name), ['propose_clips']);
   assert.deepEqual(proposedClips({ content: [{ type: 'tool_use', name: 'propose_clips', input: { clips: [1] } }] }), [1]);
 });
 

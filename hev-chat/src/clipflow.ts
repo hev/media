@@ -114,7 +114,10 @@ export async function advanceClips(
       }
       const segments = status.transcript.segments;
       update({ state: 'finding', message: 'Finding clips in the transcript…', duration: status.transcript.duration });
-      const message = await client.messages.create(findClipsRequest(segments, clips.steer, clips.count, model));
+      // A long transcript in and up to 20 candidates out can exceed the chat client's 90 s timeout.
+      const message = await client.messages.create(findClipsRequest(segments, clips.steer, clips.count, model), {
+        timeout: 300000,
+      });
       const candidates = validateCandidates(proposedClips(message as any), segments, { count: clips.count });
       if (!candidates.length) {
         update({ state: 'failed', message: 'No standalone clips were found. Try /clips with a different steer.' });
