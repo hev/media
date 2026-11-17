@@ -1,5 +1,6 @@
 <script lang="ts">
   import Markdown from './Markdown.svelte';
+  import ClipsCard, { type Clips } from './ClipsCard.svelte';
   import WorkerProgress, { type Progress } from './WorkerProgress.svelte';
   import {
     mdiPencil,
@@ -28,7 +29,15 @@
     duration?: number;
     timeline?: { id?: string; duration: number }[];
   };
-  type Thread = { id: string; title: string; messages: Message[]; selected: Photo[]; jobs: string[]; setup?: Setup };
+  type Thread = {
+    id: string;
+    title: string;
+    messages: Message[];
+    selected: Photo[];
+    jobs: string[];
+    setup?: Setup;
+    clips?: Clips;
+  };
   type Setup = {
     aspectRatio: string;
     length: number;
@@ -39,9 +48,10 @@
     assetIds: string[];
   };
   let setup = $state<Setup>();
+  let clips = $state<Clips>();
   let status = $state('');
   let visible = $state<Record<number, number>>({});
-  const commands = ['search', 'edit', 'open', 'revise', 'resolve', 'publish'];
+  const commands = ['search', 'edit', 'open', 'revise', 'resolve', 'publish', 'clips'];
   async function saveSetup() {
     if (!current || !setup) return;
     setup.assetIds = selected;
@@ -136,6 +146,7 @@
     messages = t.messages;
     selected = [];
     setup = undefined;
+    clips = undefined;
     edits = [];
     await list();
     await goto('/chat/' + t.id);
@@ -145,6 +156,7 @@
     current = await api('/threads/' + id);
     messages = current!.messages;
     setup = current!.setup;
+    clips = current!.clips;
     selected = current!.selected.map((a) => a.id);
     edits = [];
     following = true;
@@ -305,6 +317,10 @@
   async function refreshEdits() {
     try {
       if (!current) return;
+      if (clips && ['transcribing', 'finding'].includes(clips.state)) {
+        const latest = await fetch('/hev-chat/threads/' + current.id + '/clips');
+        if (latest.ok) clips = (await latest.json()) ?? undefined;
+      }
       const response = await fetch('/hev-chat/threads/' + current.id + '/edits');
       if (response.ok) {
         edits = await response.json();
@@ -350,7 +366,7 @@
       edits = [];
     }
     const slash = question.trim().match(/^\/(\w+)(?:\s+(.*))?$/s);
-    if (slash && slash[1] !== 'search') {
+    if (slash && !['search', 'clips'].includes(slash[1])) {
       await command(slash[1]);
       return;
     }
@@ -397,6 +413,10 @@
           }
           case 'setup': {
             setup = event.setup;
+            break;
+          }
+          case 'clips': {
+            clips = event.clips;
             break;
           }
           case 'text': {
@@ -450,6 +470,7 @@
       if (current) {
         current = await api('/threads/' + current.id);
         setup = current?.setup;
+        clips = current?.clips;
       }
       await list();
       if (current && page.params.threadId !== current.id) await goto('/chat/' + current.id);
@@ -622,6 +643,19 @@
             disabled={busy || selected.length === 0 || selected.length > 20}>Start edit</button
           >
         </form>
+      {/if}
+      {#if clips && current}
+        <ClipsCard
+          threadId={current.id}
+          bind:clips
+          {edits}
+          {busy}
+          onMake={async () => {
+            question = 'make clips';
+            await send();
+          }}
+          onOpen={openPhoto}
+        />
       {/if}
       <div
         bind:this={log}
