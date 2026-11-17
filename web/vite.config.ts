@@ -18,6 +18,8 @@ const proxy: Record<string, string | ProxyOptions> = {
   '/api': upstream,
   '/.well-known/immich': upstream,
   '/custom.css': upstream,
+  // hev chat companion for local acceptance alongside a running stack.
+  ...(process.env.HEV_CHAT_URL ? { '/hev-chat': { target: process.env.HEV_CHAT_URL, ws: false } } : {}),
 };
 
 export default defineConfig({

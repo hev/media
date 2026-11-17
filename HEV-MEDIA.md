@@ -19,8 +19,9 @@ remain for the familiar browsing layout. Status/error colors keep their meaning.
 - `web/src/lib/branding/`: logo component and light/dark token overrides.
 - The purchase prompt is removed by choice; Immich credits, About and licenses stay.
 - No database schema, metadata storage, API or media-processing changes.
-- Our future metadata service will own stable IDs and annotations outside the
-  browsing index. It is not implemented by this branding change.
+- `hev-meta/` is the metadata service that owns annotations (transcripts)
+  outside the browsing index, keyed by Immich asset ID and checksum. It reads
+  Immich through its API and never writes to Immich.
 
 `hev/main` follows the deployed release plus our changes. Keep `upstream` pointed
 at immich-app/immich, update deliberately by release, and test against that same
@@ -200,3 +201,50 @@ Jobs retain dispatch names for logs/attach/stop, retry host-full capacity, and
 reattach live edits after launcher restart. Orders, originals and rendered outputs
 stay in the private job directory; editing workers must never commit, push or open
 PRs. Kit owns only the incidental worktree/branch. Buffer remains explicitly gated.
+
+## Transcripts (`hev-meta`)
+
+`hev-meta/` transcribes external-library videos on the mini host with
+whisper.cpp (large-v3-turbo, Metal) and Silero VAD, at background priority,
+one asset at a time. Files go to `/Volumes/EXTERNAL/.immich/hev-meta/transcripts/<assetId>/`
+(`transcript.json`, `.vtt`, `.srt`; the hidden directory is excluded from the
+library), and a SQLite FTS5 index on the internal disk keys segments by asset
+ID and start/end. A transcript belongs to the original's Immich checksum; a
+changed checksum re-transcribes, and repeated requests are no-ops. There is no
+library backfill: transcripts are made on request, and an optional poller only
+picks up videos added after the high-water mark recorded at install. Its HTTP
+API checks the caller's Immich session like hev-chat; transcription requests
+are administrator-only. See [hev-meta/README.md](hev-meta/README.md).
+
+Chat reaches it at `HEV_META_URL` (host gateway, e.g.
+`http://host.lima.internal:2292`). Captions in the web player and transcript
+search in chat are not built yet.
+
+## Clips mode
+
+Administrators can cut several short social reels from one long video. Open
+the video and choose **Find clips**, or add it to a thread and type `/clips`
+with an optional steer (`/clips funny moments`, `/clips about agents 12 clips`).
+If the video has no transcript, chat requests one from hev-meta and the clips
+card shows progress.
+
+Find-clips sends only the timestamped transcript text (no video, frames or
+paths) to the chat model, fenced as untrusted data, and asks for standalone
+moments. Candidates are validated against the transcript: snapped to segment
+boundaries (preferring sentence boundaries), 15 to 60 seconds, no overlaps,
+quotes checked against the range, default 8 and at most 20. The clips card
+lists each candidate with its title, quote, in/out, a play-from-timestamp
+preview and Open in viewer, and a checkbox. Shared settings are aspect ratio
+(9:16 by default) and captions (on); clips add no music.
+
+**Make clips**, or typing “make clips” with no turn in between, is the single
+confirmation, under the same rule as Start edit. It launches one hev-edit job
+per selected clip. Each job receives `segment {assetId, start, end}`, the
+clip's title and quote and the stored transcript's cues for the range, and
+stages only that segment (ffmpeg stream copy with three seconds of handle,
+through the read-only container mount) instead of copying the original.
+Workers caption from the cues rather than re-transcribing; transcript text,
+quotes and titles are data, never instructions. Jobs queue and render one at a
+time; each keeps its own edit card, revisions, Resolve handoff and Publish
+button (one Buffer draft per clip, only on explicit Publish).
+

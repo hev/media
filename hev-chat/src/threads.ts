@@ -1,4 +1,5 @@
 import type { EditSetup } from './ux.js';
+import type { ClipsState } from './clips.js';
 import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
 export type ToolStep = {
@@ -37,7 +38,7 @@ export class Threads {
   constructor(file: string) {
     this.db = new DatabaseSync(file);
     this.db.exec(
-      'PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS threads(id TEXT PRIMARY KEY, owner TEXT NOT NULL, data TEXT NOT NULL); CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY, owner TEXT NOT NULL, thread TEXT NOT NULL);',
+      'PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS threads(id TEXT PRIMARY KEY, owner TEXT NOT NULL, data TEXT NOT NULL); CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY, owner TEXT NOT NULL, thread TEXT NOT NULL); CREATE TABLE IF NOT EXISTS clips(thread TEXT PRIMARY KEY, owner TEXT NOT NULL, data TEXT NOT NULL, armed INTEGER);',
     );
   }
   list(owner: string): Thread[] {
@@ -95,6 +96,24 @@ export class Threads {
     this.db
       .prepare('DELETE FROM threads WHERE owner=? AND id=?')
       .run(owner, id);
+    this.db.prepare('DELETE FROM clips WHERE owner=? AND thread=?').run(owner, id);
+  }
+  // Clips state lives in its own row so background transcript/find-clips
+  // progress never races a streaming chat turn that saves the whole thread.
+  // `armed` is the message count at which the card was last shown or saved.
+  clips(owner: string, thread: string): { clips: ClipsState; armed?: number } | undefined {
+    const row = this.db
+      .prepare('SELECT data, armed FROM clips WHERE owner=? AND thread=?')
+      .get(owner, thread) as any;
+    return row && { clips: JSON.parse(row.data), armed: row.armed ?? undefined };
+  }
+  saveClips(owner: string, thread: string, clips: ClipsState, armed?: number | null) {
+    if (!this.get(owner, thread)) throw Error('Thread unavailable');
+    clips.updatedAt = Date.now();
+    const previous = this.clips(owner, thread);
+    this.db
+      .prepare('INSERT OR REPLACE INTO clips VALUES(?,?,?,?)')
+      .run(thread, owner, JSON.stringify(clips), armed === undefined ? (previous?.armed ?? null) : armed);
   }
   claim(owner: string, thread: Thread, job: string) {
     this.db

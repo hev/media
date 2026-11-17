@@ -1,0 +1,1 @@
+{"name":"hev-meta","private":true,"type":"module","bin":{"hev-meta":"./cli.mjs"},"scripts":{"test":"node --test *.test.mjs","start":"node cli.mjs serve"}}

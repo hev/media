@@ -1,5 +1,6 @@
 <script lang="ts">
   import AddToChat from '$lib/components/hev-chat/AddToChat.svelte';
+  import FindClips from '$lib/components/hev-chat/FindClips.svelte';
   import ActionMenuItem from '$lib/components/ActionMenuItem.svelte';
   import type { OnAction, PreAction } from '$lib/components/asset-viewer/actions/action';
   import ArchiveAction from '$lib/components/asset-viewer/actions/ArchiveAction.svelte';
@@ -105,6 +106,9 @@
       </Tooltip>
     {/if}
     {#if !sharedLink && isOwner}<AddToChat ids={[asset.id]} />{/if}
+    {#if !sharedLink && isOwner && authManager.user.isAdmin && asset.type === AssetTypeEnum.Video}<FindClips
+        id={asset.id}
+      />{/if}
     <ActionButton action={Cast} />
     <ActionButton action={Actions.Share} />
     <ActionButton action={Actions.Offline} />

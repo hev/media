@@ -5,6 +5,7 @@ export const commands = [
   'revise',
   'resolve',
   'publish',
+  'clips',
 ] as const;
 export function parseSlash(value: string) {
   const match = value.trim().match(/^\/(\w+)(?:\s+(.*))?$/s);
