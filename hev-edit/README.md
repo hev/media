@@ -42,6 +42,13 @@ active states fail as before so uploads/drafts are never silently repeated. Queu
 revision. A revision retains the job ID and increments its revision/dedupe key.
 It renders a new preview; only an explicit Publish request creates a Buffer draft. Previous drafts are retained.
 
+Clip jobs (clips mode) carry `segment {assetId, start, end}` for their single
+asset, transcript `cues` in source seconds and `clip {title, quote}`. The
+launcher stages only that range plus three seconds of handle by stream copy
+(`media/segment/<assetId>.mp4`, reused by revisions), records the staged
+size and time in `job.json`, and writes cues retimed to the staged file into
+`brief.json`. The worker captions from those cues instead of re-transcribing.
+
 States: queued → editing → rendered → uploading → drafted, or failed from any
 active state. With Buffer disabled, a job stays uploading with an explicit R2
 completion note. It can be revised after the queue is idle. There is a draft-only `/jobs/:id/publish` endpoint; there is no public publish,
