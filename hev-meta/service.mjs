@@ -95,6 +95,8 @@ export function worker(store, cfg, log = console.log) {
     if (busy) return;
     busy = true;
     try {
+      // A CLI run that died mid-job must not hold the queue.
+      store.recover();
       let job;
       while ((job = store.claim(process.pid))) {
         try {
@@ -138,7 +140,6 @@ export async function poll(store, cfg, log = console.log, fetcher = fetch) {
 }
 
 export function serve(store, cfg) {
-  store.recover();
   const tick = worker(store, cfg);
   setInterval(tick, 5000).unref();
   void tick();
