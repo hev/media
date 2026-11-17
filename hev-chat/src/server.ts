@@ -935,4 +935,4 @@ const server = createServer(async (req, res) => {
   }
 });
 server.requestTimeout = 120000;
-server.listen(Number(process.env.PORT ?? 2290), '0.0.0.0');
+server.listen(Number(process.env.PORT ?? 2290), process.env.HEV_CHAT_BIND ?? '0.0.0.0');
