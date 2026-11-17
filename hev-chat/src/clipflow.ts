@@ -59,6 +59,9 @@ export function newClips(asset: { id: string; originalFileName?: string }, steer
   };
 }
 
+export const clipsTitle = (fileName = 'video') =>
+  ('Clips · ' + fileName.replace(/\.[^.]+$/, '')).slice(0, 80);
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const running = new Set<string>();
 

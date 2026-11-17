@@ -12,7 +12,7 @@ import {
   type ClipsState,
   type Segment,
 } from './clips.js';
-import { advanceClips, launchClips, newClips } from './clipflow.js';
+import { advanceClips, clipsTitle, launchClips, newClips } from './clipflow.js';
 import { Threads } from './threads.js';
 import { parseSlash } from './ux.js';
 
@@ -34,6 +34,7 @@ test('steer parsing: default 8, explicit count capped at 20', () => {
   assert.equal(parseSteer('about agents, 12 clips').count, 12);
   assert.equal(parseSteer('50 clips').count, 20);
   assert.deepEqual(parseSlash('/clips about agents'), { name: 'clips', argument: 'about agents' });
+  assert.equal(clipsTitle('The Full Send - Meghan.mp4'), 'Clips · The Full Send - Meghan');
 });
 
 test('candidates snap to segment boundaries, preferring sentence starts and ends', () => {

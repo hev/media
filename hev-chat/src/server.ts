@@ -21,7 +21,7 @@ import {
   resolveCandidates,
 } from './edits.js';
 import { createServer } from 'node:http';
-import { advanceClips, clipSource, launchClips, newClips } from './clipflow.js';
+import { advanceClips, clipSource, clipsTitle, launchClips, newClips } from './clipflow.js';
 import { clipsConfirmation, editCandidates } from './clips.js';
 import Anthropic from '@anthropic-ai/sdk';
 import {
@@ -216,6 +216,10 @@ const server = createServer(async (req, res) => {
           }
           const asset = await clipSource(body.assetId, options);
           threads.saveClips(identity, thread.id, newClips(asset, body.steer ?? ''), null);
+          if (thread.autoTitle) {
+            thread.title = clipsTitle(asset.originalFileName);
+            threads.save(identity, thread);
+          }
         }
         if (req.method === 'PUT') {
           const record = threads.clips(identity, thread.id);
@@ -567,6 +571,7 @@ const server = createServer(async (req, res) => {
           );
         const asset = await clipSource(video.id, options);
         const clips = newClips(asset, slash.argument);
+        if (thread.autoTitle) thread.title = clipsTitle(asset.originalFileName);
         // Shown with no turn in between: a typed "make clips" may confirm it.
         threads.saveClips(identity, thread.id, clips, thread.messages.length);
         answer.content = `Finding up to ${clips.count} clips in **${asset.originalFileName}**${clips.steer ? ` (${clips.steer})` : ''}. The clips card shows progress.`;
