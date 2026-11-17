@@ -2,6 +2,7 @@
   import Markdown from './Markdown.svelte';
   import ClipsCard, { type Clips } from './ClipsCard.svelte';
   import WorkerProgress, { type Progress } from './WorkerProgress.svelte';
+  import { mediaRatio, previewStyle, ratioOf } from './preview';
   import {
     mdiPencil,
     mdiMovieEditOutline,
@@ -122,6 +123,8 @@
   let editDrawer = $state(false);
   let selected = $state<string[]>([]);
   let revisions = $state<Record<string, number>>({});
+  // Natural width ÷ height of each loaded preview, keyed by its URL.
+  let ratios = $state<Record<string, number>>({});
   let log: HTMLDivElement;
   let following = $state(true);
   async function api(path: string, method = 'GET', body?: object) {
@@ -569,94 +572,98 @@
       </nav>
     </aside>
     <main class="flex min-w-0 flex-1 flex-col px-3">
-      <p class="py-2 text-sm opacity-70">
-        Find moments, select photos and videos, edit and revise. Publish saves a Buffer draft for review.
-      </p>
-      {#if edits.length}<nav aria-label="Linked edits" class="flex flex-wrap gap-3 border-b py-2">
-          {#each edits as edit (edit.id)}<a class="underline" href={`#edit-${edit.id}`}
-              >Edit {edit.id.slice(0, 8)} · {edit.state} · revision {edit.revision}</a
-            >{/each}
-        </nav>{/if}
-      <button type="button" class="self-start rounded-lg border p-2" disabled={busy} onclick={openSetup}
-        >Edit setup · {selected.length} selected</button
-      >
-      {#if setup}
-        <form
-          aria-label="Edit setup"
-          class="my-2 grid max-h-[45dvh] shrink-0 grid-cols-2 gap-2 overflow-y-auto rounded-xl border p-3"
-          onsubmit={async (e) => {
-            e.preventDefault();
-            if (!(await saveSetup())) return;
-            question = 'give it a go';
-            await send();
-          }}
+      <!-- Everything pinned above the transcript shares one bounded, scrolling pane, so a long clips card,
+           setup form or edit list can never take the transcript's height (it used to leave it 0–40 px). -->
+      <div class="chat-pinned flex max-h-[40%] min-h-0 shrink-0 flex-col overflow-y-auto border-b">
+        <p class="py-2 text-sm opacity-70">
+          Find moments, select photos and videos, edit and revise. Publish saves a Buffer draft for review.
+        </p>
+        {#if edits.length}<nav aria-label="Linked edits" class="flex flex-wrap gap-3 border-b py-2">
+            {#each edits as edit (edit.id)}<a class="underline" href={`#edit-${edit.id}`}
+                >Edit {edit.id.slice(0, 8)} · {edit.state} · revision {edit.revision}</a
+              >{/each}
+          </nav>{/if}
+        <button type="button" class="self-start rounded-lg border p-2" disabled={busy} onclick={openSetup}
+          >Edit setup · {selected.length} selected</button
         >
-          <label
-            >Aspect ratio <select aria-label="Aspect ratio" bind:value={setup.aspectRatio} onchange={saveSetup}
-              >{#each ['9:16', '1:1', '16:9', '4:5'] as ratio (ratio)}<option>{ratio}</option>{/each}</select
-            ></label
+        {#if setup}
+          <form
+            aria-label="Edit setup"
+            class="my-2 grid shrink-0 grid-cols-2 gap-2 rounded-xl border p-3"
+            onsubmit={async (e) => {
+              e.preventDefault();
+              if (!(await saveSetup())) return;
+              question = 'give it a go';
+              await send();
+            }}
           >
-          <label
-            >Length (seconds) <input
-              class="w-20 bg-transparent"
-              type="number"
-              min="1"
-              max="60"
-              bind:value={setup.length}
-              onchange={saveSetup}
-            /></label
-          >
-          <label><input type="checkbox" bind:checked={setup.captions} onchange={saveSetup} /> Captions</label>
-          <label
-            >Titles <input
-              class="w-full bg-transparent"
-              bind:value={setup.titles}
-              onchange={saveSetup}
-              maxlength={2000}
-            /></label
-          >
-          <label class="col-span-2"
-            >Brief <input
-              class="w-full bg-transparent"
-              bind:value={setup.brief}
-              onchange={saveSetup}
-              maxlength={2000}
-            /></label
-          >
-          <label class="col-span-2"
-            >Licensed music file (optional) <input
-              class="w-full bg-transparent"
-              bind:value={setup.music}
-              onchange={saveSetup}
-              maxlength={2000}
-              placeholder="Leave empty for no added music"
-            /></label
-          >
-          <p class="col-span-2">
-            Shortlist: {selected.length} selected. {selected.length === 0
-              ? 'Select at least one clip below to enable Start edit.'
-              : 'Choose clips below.'} Start edit confirms these settings; you can also say “give it a go”.
-          </p>
-          <button
-            class="rounded-lg border p-2"
-            type="submit"
-            disabled={busy || selected.length === 0 || selected.length > 20}>Start edit</button
-          >
-        </form>
-      {/if}
-      {#if clips && current}
-        <ClipsCard
-          threadId={current.id}
-          bind:clips
-          {edits}
-          {busy}
-          onMake={async () => {
-            question = 'make clips';
-            await send();
-          }}
-          onOpen={openPhoto}
-        />
-      {/if}
+            <label
+              >Aspect ratio <select aria-label="Aspect ratio" bind:value={setup.aspectRatio} onchange={saveSetup}
+                >{#each ['9:16', '1:1', '16:9', '4:5'] as ratio (ratio)}<option>{ratio}</option>{/each}</select
+              ></label
+            >
+            <label
+              >Length (seconds) <input
+                class="w-20 bg-transparent"
+                type="number"
+                min="1"
+                max="60"
+                bind:value={setup.length}
+                onchange={saveSetup}
+              /></label
+            >
+            <label><input type="checkbox" bind:checked={setup.captions} onchange={saveSetup} /> Captions</label>
+            <label
+              >Titles <input
+                class="w-full bg-transparent"
+                bind:value={setup.titles}
+                onchange={saveSetup}
+                maxlength={2000}
+              /></label
+            >
+            <label class="col-span-2"
+              >Brief <input
+                class="w-full bg-transparent"
+                bind:value={setup.brief}
+                onchange={saveSetup}
+                maxlength={2000}
+              /></label
+            >
+            <label class="col-span-2"
+              >Licensed music file (optional) <input
+                class="w-full bg-transparent"
+                bind:value={setup.music}
+                onchange={saveSetup}
+                maxlength={2000}
+                placeholder="Leave empty for no added music"
+              /></label
+            >
+            <p class="col-span-2">
+              Shortlist: {selected.length} selected. {selected.length === 0
+                ? 'Select at least one clip below to enable Start edit.'
+                : 'Choose clips below.'} Start edit confirms these settings; you can also say “give it a go”.
+            </p>
+            <button
+              class="rounded-lg border p-2"
+              type="submit"
+              disabled={busy || selected.length === 0 || selected.length > 20}>Start edit</button
+            >
+          </form>
+        {/if}
+        {#if clips && current}
+          <ClipsCard
+            threadId={current.id}
+            bind:clips
+            {edits}
+            {busy}
+            onMake={async () => {
+              question = 'make clips';
+              await send();
+            }}
+            onOpen={openPhoto}
+          />
+        {/if}
+      </div>
       <div
         bind:this={log}
         onscroll={() => {
@@ -769,14 +776,20 @@
                           >{/each}</select
                       ></label
                     >{/if}
-                  {#if revision?.preview || edit.preview}<video
+                  {#if revision?.preview || edit.preview}{@const src = (revision?.preview ?? edit.preview)!}<video
                       controls
                       muted
                       playsinline
                       onplay={pauseOthers}
+                      onloadedmetadata={(e) => {
+                        const ratio = mediaRatio(e.currentTarget);
+                        if (ratio) ratios[src] = ratio;
+                      }}
                       preload="metadata"
-                      class="mt-2 max-h-80 rounded-lg"
-                      src={revision?.preview ?? edit.preview}><track kind="captions" /></video
+                      aria-label="Reel preview"
+                      class="mt-2 block shrink-0 rounded-lg bg-black object-contain"
+                      style={previewStyle(ratios[src] ?? ratioOf(edit.setup?.aspectRatio) ?? 9 / 16)}
+                      {src}><track kind="captions" /></video
                     >{/if}
                   <button
                     type="button"
@@ -851,15 +864,16 @@
           </section>
         {/each}
         {#if messages.length === 0}<p class="p-4">Start a thread by asking about your photos or videos.</p>{/if}
+        <!-- Floats over the transcript instead of taking height from it. -->
+        {#if !following}<button
+            type="button"
+            class="sticky bottom-2 mx-auto block w-fit rounded-xl border bg-immich-bg p-2 shadow-md dark:bg-immich-dark-bg"
+            onclick={() => {
+              following = true;
+              void scrollLatest();
+            }}>Jump to latest</button
+          >{/if}
       </div>
-      {#if !following}<button
-          type="button"
-          class="self-center rounded-xl border p-2"
-          onclick={() => {
-            following = true;
-            void scrollLatest();
-          }}>Jump to latest</button
-        >{/if}
       {#if busy}<p role="status" class="py-2 text-sm">{status}</p>{/if}
       {#if question.startsWith('/')}<div aria-label="Slash commands" class="flex flex-wrap gap-2">
           {#each commands.filter((c) => c.startsWith(question.slice(1).split(' ', 1)[0])) as name (name)}<button

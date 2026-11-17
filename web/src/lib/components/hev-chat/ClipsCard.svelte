@@ -26,6 +26,11 @@
 
 <script lang="ts">
   import { getAssetPlaybackUrl } from '$lib/utils';
+  import { tick } from 'svelte';
+  import { mediaRatio, previewStyle } from './preview';
+
+  // The source player sits in the pinned pane above the transcript, so it stays smaller than reel previews.
+  const CLIP_PLAYER_MAX_HEIGHT = 'min(14rem, 28dvh)';
 
   type Job = { id: string; state: string };
   let {
@@ -46,6 +51,8 @@
   let error = $state('');
   let player = $state<HTMLVideoElement>();
   let playing = $state<ClipCandidate>();
+  // The source's natural width ÷ height once loaded; assume landscape until then.
+  let sourceRatio = $state(16 / 9);
   const chosen = $derived(clips.candidates.filter((c) => c.selected && !c.jobId));
   const time = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
@@ -59,7 +66,13 @@
         captions: clips.captions,
         candidates: clips.candidates
           .filter((c) => !c.jobId)
-          .map(({ id, selected, title, start, end }) => ({ id, selected, title, start: Number(start), end: Number(end) })),
+          .map(({ id, selected, title, start, end }) => ({
+            id,
+            selected,
+            title,
+            start: Number(start),
+            end: Number(end),
+          })),
       }),
     });
     if (!r.ok) {
@@ -74,6 +87,9 @@
     if (!player) return;
     if (!player.src) player.src = getAssetPlaybackUrl({ id: clips.assetId });
     player.currentTime = candidate.start;
+    await tick();
+    // The card scrolls inside the pinned pane; bring the player into view for a candidate far down the list.
+    player.scrollIntoView?.({ block: 'nearest' });
     await player.play().catch(() => {});
   }
   async function make() {
@@ -81,7 +97,7 @@
   }
 </script>
 
-<section aria-label="Clips" class="my-2 max-h-[55dvh] shrink-0 overflow-y-auto rounded-xl border p-3">
+<section aria-label="Clips" class="my-2 shrink-0 rounded-xl border p-3">
   <p class="font-semibold">
     Clips · {clips.fileName ?? 'video'}{#if clips.steer}
       · “{clips.steer}”{/if}
@@ -94,7 +110,8 @@
           aria-label="Clip aspect ratio"
           bind:value={clips.aspectRatio}
           disabled={clips.state !== 'ready'}
-          onchange={save}>{#each ['9:16', '1:1', '16:9', '4:5'] as ratio (ratio)}<option>{ratio}</option>{/each}</select
+          onchange={save}
+          >{#each ['9:16', '1:1', '16:9', '4:5'] as ratio (ratio)}<option>{ratio}</option>{/each}</select
         ></label
       >
       <label
@@ -107,11 +124,12 @@
     <video
       bind:this={player}
       aria-label="Clip preview"
-      class="mb-2 max-h-56 rounded-lg"
-      class:hidden={!playing}
+      class={`mb-2 shrink-0 rounded-lg bg-black object-contain ${playing ? 'block' : 'hidden'}`}
+      style={previewStyle(sourceRatio, CLIP_PLAYER_MAX_HEIGHT)}
       controls
       playsinline
       preload="none"
+      onloadedmetadata={(e) => (sourceRatio = mediaRatio(e.currentTarget) ?? sourceRatio)}
       ontimeupdate={() => {
         if (playing && player && player.currentTime >= playing.end) player.pause();
       }}
@@ -179,8 +197,8 @@
     </ol>
     {#if clips.state === 'ready'}
       <p class="mt-2 text-sm">
-        Make clips starts one edit per selected clip; they render one at a time. You can also say “make clips”. Nothing is
-        published.
+        Make clips starts one edit per selected clip; they render one at a time. You can also say “make clips”. Nothing
+        is published.
       </p>
       <button
         type="button"
