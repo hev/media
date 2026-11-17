@@ -38,6 +38,9 @@ export function validate(input) {
           "caption",
           "threadId",
           "ownerId",
+          "segment",
+          "cues",
+          "clip",
         ].includes(k),
     ) ||
     !["9:16", "1:1", "16:9", "4:5"].includes(input.aspectRatio ?? "9:16") ||
@@ -66,6 +69,9 @@ export function validate(input) {
     input.length > 60
   )
     throw Error("Invalid edit brief");
+  if (input.segment !== undefined) validateSegment(input);
+  else if (input.cues !== undefined || input.clip !== undefined)
+    throw Error("Invalid clip");
   if (
     input.threadId !== undefined &&
     (!/^[a-f0-9-]{36}$/.test(input.threadId) ||
@@ -163,6 +169,8 @@ export function publicJob(job) {
       music: job.input.music,
     },
     assets: (job.input.assets ?? []).map((a) => ({ id: a.id })),
+    segment: job.input.segment,
+    clip: job.input.clip?.title ? { title: job.input.clip.title } : undefined,
     timeline: job.timeline,
     duration: job.duration,
     revisions: (
@@ -209,4 +217,66 @@ export function revisionSettings(settings) {
   if (!settings || typeof settings !== "object" || Array.isArray(settings) ||
       Object.keys(settings).some(k => !keys.includes(k))) throw Error("Invalid revision settings");
   return Object.fromEntries(Object.entries(settings));
+}
+
+// Clips mode: one asset, one [start, end] range of it, the stored transcript's
+// cues for that range (source seconds) and the candidate's title and quote.
+export function validateSegment(input) {
+  const { segment, cues = [], clip = {} } = input;
+  const text = (v, max) => v === undefined || (typeof v === "string" && v.length <= max);
+  if (
+    !segment ||
+    typeof segment !== "object" ||
+    Object.keys(segment).some((k) => !["assetId", "start", "end"].includes(k)) ||
+    input.assets.length !== 1 ||
+    segment.assetId !== input.assets[0].id ||
+    ![segment.start, segment.end].every(Number.isFinite) ||
+    segment.start < 0 ||
+    segment.end - segment.start < 1 ||
+    segment.end - segment.start > 60 ||
+    !Array.isArray(cues) ||
+    cues.length > 400 ||
+    cues.some(
+      (c) =>
+        !c ||
+        ![c.start, c.end].every(Number.isFinite) ||
+        c.end < c.start ||
+        typeof c.text !== "string" ||
+        c.text.length > 1000,
+    ) ||
+    !clip ||
+    typeof clip !== "object" ||
+    Object.keys(clip).some((k) => !["title", "quote"].includes(k)) ||
+    !text(clip.title, 200) ||
+    !text(clip.quote, 2000)
+  )
+    throw Error("Invalid clip");
+}
+
+// Stage only the requested range plus handles, by stream copy. Pass 1 keeps
+// source timestamps (-copyts) so the staged file's start time is the exact
+// source offset of its first packet; pass 2 remuxes to a zero-based MP4.
+export function segmentCommands({ segment, source, container, context = "default", original, mkv, mp4, handle = 3 }) {
+  const from = Math.max(0, segment.start - handle);
+  const duration = segment.end + handle - from;
+  const cut = ["-nostdin", "-v", "error", "-ss", from.toFixed(3), "-t", duration.toFixed(3), "-i"];
+  const copy = ["-map", "0:v:0", "-map", "0:a:0?", "-c", "copy", "-copyts", "-f", "matroska"];
+  return {
+    extract: container
+      ? ["docker", ["--context", context, "exec", container, "nice", "-n", "19", "ffmpeg", ...cut, original, ...copy, "pipe:1"], mkv]
+      : ["ffmpeg", [...cut, source, ...copy, "-y", mkv]],
+    probe: ["ffprobe", ["-v", "error", "-show_entries", "format=start_time", "-of", "json", mkv]],
+    remux: ["ffmpeg", ["-nostdin", "-v", "error", "-i", mkv, "-map", "0", "-c", "copy", "-movflags", "+faststart", "-y", mp4]],
+  };
+}
+
+// Transcript cues in staged-file seconds, clipped to the staged length.
+export function retimeCues(cues, offset, length) {
+  return cues
+    .map((c) => ({
+      start: Math.round(Math.max(0, c.start - offset) * 1000) / 1000,
+      end: Math.round(Math.min(length, c.end - offset) * 1000) / 1000,
+      text: c.text,
+    }))
+    .filter((c) => c.end > c.start);
 }
